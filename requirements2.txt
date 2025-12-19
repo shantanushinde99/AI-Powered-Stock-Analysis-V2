@@ -1,0 +1,12 @@
+typing-extensions
+langchain-openai
+langchain-experimental
+langchain-groq
+langchain-google-genai
+langgraph
+chromadb
+praw
+feedparser
+stockstats
+setuptools
+python-dotenv

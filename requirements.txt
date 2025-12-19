@@ -1,0 +1,27 @@
+yfinance
+streamlit
+pandas
+cufflinks
+plotly
+numpy
+pandas-ta
+TA-Lib
+bokeh
+agno
+requests  # Used for Alpha Vantage API and other HTTP requests
+lxml
+html5lib
+python-dateutil
+# TradingAgents dependencies
+typing-extensions
+langchain-openai
+langchain-experimental
+langchain-groq
+langchain-google-genai
+langgraph
+chromadb
+praw
+feedparser
+stockstats
+setuptools
+python-dotenv
