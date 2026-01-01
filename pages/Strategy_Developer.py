@@ -164,7 +164,7 @@ def analyze_chart_with_gemini(image, api_key):
     """Analyze uploaded chart using Gemini models"""
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-pro')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         prompt = """
         You are an expert trading analyst with deep knowledge of technical analysis, chart patterns, and trading psychology.

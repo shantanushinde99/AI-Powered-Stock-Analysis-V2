@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import sys
 import io
+import re
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from contextlib import redirect_stdout, redirect_stderr
@@ -75,6 +76,112 @@ def format_date_range_info(date_ranges):
             info += f"{idx}. {start.strftime('%d %b %Y')} to {end.strftime('%d %b %Y')}\n"
         return info
 
+def extract_key_points(text, max_points=5):
+    """
+    Extract key points from lengthy analysis text.
+    Focuses on actionable insights, numbers, and important statements.
+    
+    Args:
+        text: The full analysis text
+        max_points: Maximum number of key points to extract
+    
+    Returns:
+        List of key point strings
+    """
+    if not text or len(text.strip()) == 0:
+        return []
+    
+    key_points = []
+    
+    # Split into sentences
+    sentences = re.split(r'[.!?]+', text)
+    
+    # Priority keywords that indicate important information
+    priority_keywords = [
+        'recommend', 'suggest', 'should', 'must', 'important', 'critical', 'key',
+        'significant', 'strong', 'weak', 'buy', 'sell', 'hold', 'risk', 'opportunity',
+        'target', 'price', 'increase', 'decrease', 'growth', 'decline', 'trend',
+        'bullish', 'bearish', 'positive', 'negative', 'warning', 'alert', 'note'
+    ]
+    
+    # Score sentences based on importance
+    scored_sentences = []
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if len(sentence) < 20 or len(sentence) > 300:  # Skip very short or very long sentences
+            continue
+        
+        score = 0
+        sentence_lower = sentence.lower()
+        
+        # Check for priority keywords
+        for keyword in priority_keywords:
+            if keyword in sentence_lower:
+                score += 2
+        
+        # Check for numbers/percentages (often important)
+        if re.search(r'\d+\.?\d*%|\$\d+|\d+\.\d+', sentence):
+            score += 3
+        
+        # Check for bullets or list indicators
+        if re.match(r'^[•\-*]|^\d+[.)]', sentence):
+            score += 1
+        
+        # Prefer shorter, punchier sentences
+        if len(sentence) < 150:
+            score += 1
+        
+        if score > 0:
+            scored_sentences.append((score, sentence))
+    
+    # Sort by score and take top ones
+    scored_sentences.sort(reverse=True, key=lambda x: x[0])
+    key_points = [sent for score, sent in scored_sentences[:max_points]]
+    
+    return key_points
+
+def create_executive_summary(final_state, decision):
+    """
+    Create a concise executive summary from the analysis.
+    
+    Args:
+        final_state: The complete analysis state
+        decision: The final trading decision
+    
+    Returns:
+        Dictionary with summary components
+    """
+    summary = {
+        'decision': decision.strip() if decision else 'NO DECISION',
+        'key_bullish_points': [],
+        'key_bearish_points': [],
+        'key_risks': [],
+        'confidence_indicators': {}
+    }
+    
+    # Extract bullish points from bull researcher
+    if final_state.get('investment_debate_state', {}).get('bull_history'):
+        bull_text = final_state['investment_debate_state']['bull_history']
+        summary['key_bullish_points'] = extract_key_points(bull_text, max_points=3)
+    
+    # Extract bearish points from bear researcher
+    if final_state.get('investment_debate_state', {}).get('bear_history'):
+        bear_text = final_state['investment_debate_state']['bear_history']
+        summary['key_bearish_points'] = extract_key_points(bear_text, max_points=3)
+    
+    # Extract risks from risk assessment
+    if final_state.get('risk_debate_state'):
+        risk_texts = []
+        if final_state['risk_debate_state'].get('risky_history'):
+            risk_texts.append(final_state['risk_debate_state']['risky_history'])
+        if final_state['risk_debate_state'].get('safe_history'):
+            risk_texts.append(final_state['risk_debate_state']['safe_history'])
+        
+        combined_risk = ' '.join(risk_texts)
+        summary['key_risks'] = extract_key_points(combined_risk, max_points=3)
+    
+    return summary
+
 # ============================================================================
 # TRADINGAGENTS FRAMEWORK SECTION
 # ============================================================================
@@ -110,7 +217,7 @@ with col1:
     # LLM Provider Selection
     llm_provider = st.selectbox(
         "Select LLM Provider",
-        options=["Google", "OpenRouter", "Groq"],
+        options=["Google", "Groq"],
         help="Choose your preferred LLM provider"
     )
     
@@ -124,16 +231,6 @@ with col1:
         )
         if google_api_key:
             os.environ["GOOGLE_API_KEY"] = google_api_key
-    
-    elif llm_provider == "OpenRouter":
-        openrouter_api_key = st.text_input(
-            "OpenRouter API Key",
-            type="password",
-            value=os.getenv("OPENROUTER_API_KEY", ""),
-            help="Enter your OpenRouter API key"
-        )
-        if openrouter_api_key:
-            os.environ["OPENROUTER_API_KEY"] = openrouter_api_key
     
     elif llm_provider == "Groq":
         groq_api_key = st.text_input(
@@ -343,27 +440,26 @@ st.subheader("🧠 Model Selection")
 MODEL_OPTIONS = {
     "Google": {
         "quick": [
+            "gemini-3-pro-preview",
+            "gemini-3-flash-preview",
+            "gemini-2.5-pro",
+            "gemini-flash-latest",
             "gemini-flash-lite-latest",
-            "gemini-2.0-flash-lite",
+            "gemini-2.5-flash",
             "gemini-2.5-flash-lite",
-            "gemini-flash-latest"
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite"
         ],
         "deep": [
             "gemini-3-pro-preview",
+            "gemini-3-flash-preview",
             "gemini-2.5-pro",
+            "gemini-flash-latest",
+            "gemini-flash-lite-latest",
             "gemini-2.5-flash",
-            "gemini-2.0-flash"
-        ]
-    },
-    "OpenRouter": {
-        "quick": [
-            "meta-llama/llama-4-scout:free",
-            "meta-llama/llama-3.3-8b-instruct:free",
-            "google/gemini-2.0-flash-exp:free"
-        ],
-        "deep": [
-            "meta-llama/llama-3.3-8b-instruct:free",
-            "deepseek/deepseek-chat-v3-0324:free"
+            "gemini-2.5-flash-lite",
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite"
         ]
     },
     "Groq": {
@@ -440,10 +536,6 @@ if llm_provider == "Google" and not os.getenv("GOOGLE_API_KEY"):
     can_run = False
     error_messages.append("⚠️ Google API Key is required")
 
-if llm_provider == "OpenRouter" and not os.getenv("OPENROUTER_API_KEY"):
-    can_run = False
-    error_messages.append("⚠️ OpenRouter API Key is required")
-
 if llm_provider == "Groq" and not os.getenv("GROQ_API_KEY"):
     can_run = False
     error_messages.append("⚠️ Groq API Key is required")
@@ -510,8 +602,6 @@ if st.button("🚀 Start TradingAgents Analysis", disabled=not can_run, type="pr
             # Set backend URL based on provider
             if llm_provider == "Google":
                 config["backend_url"] = "https://generativelanguage.googleapis.com/v1"
-            elif llm_provider == "OpenRouter":
-                config["backend_url"] = "https://openrouter.ai/api/v1"
             elif llm_provider == "Groq":
                 config["backend_url"] = "https://api.groq.com/openai/v1"
             
@@ -644,7 +734,65 @@ if st.button("🚀 Start TradingAgents Analysis", disabled=not can_run, type="pr
                         if idx < len(all_segments_results):
                             st.markdown("---")
             
-            # Create tabs for different reports
+            # Create Executive Summary at the top
+            st.markdown("---")
+            st.markdown("## 🎯 Executive Summary")
+            
+            summary = create_executive_summary(final_state, decision)
+            
+            # Display decision prominently
+            col1, col2, col3 = st.columns([2, 1, 1])
+            
+            with col1:
+                decision_text = summary['decision'].upper()
+                if "BUY" in decision_text:
+                    st.success(f"### 📈 RECOMMENDATION: {decision_text}")
+                elif "SELL" in decision_text:
+                    st.error(f"### 📉 RECOMMENDATION: {decision_text}")
+                elif "HOLD" in decision_text:
+                    st.warning(f"### ⏸️ RECOMMENDATION: {decision_text}")
+                else:
+                    st.info(f"### 📊 RECOMMENDATION: {decision_text}")
+            
+            with col2:
+                st.metric("Analysis Period", f"{len(date_ranges)} Segment(s)")
+            
+            with col3:
+                st.metric("Ticker", ticker)
+            
+            # Key insights in columns
+            st.markdown("---")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("### 🐂 Bullish Points")
+                if summary['key_bullish_points']:
+                    for point in summary['key_bullish_points']:
+                        st.markdown(f"✓ {point[:150]}..." if len(point) > 150 else f"✓ {point}")
+                else:
+                    st.info("No specific bullish points extracted")
+            
+            with col2:
+                st.markdown("### 🐻 Bearish Points")
+                if summary['key_bearish_points']:
+                    for point in summary['key_bearish_points']:
+                        st.markdown(f"✗ {point[:150]}..." if len(point) > 150 else f"✗ {point}")
+                else:
+                    st.info("No specific bearish points extracted")
+            
+            with col3:
+                st.markdown("### ⚠️ Key Risks")
+                if summary['key_risks']:
+                    for point in summary['key_risks']:
+                        st.markdown(f"⚠ {point[:150]}..." if len(point) > 150 else f"⚠ {point}")
+                else:
+                    st.info("No specific risks identified")
+            
+            # Create tabs for detailed reports
+            st.markdown("---")
+            st.markdown("## 📑 Detailed Analysis Reports")
+            st.caption("Expand sections below to view detailed analysis from each team")
+            
             tab1, tab2, tab3, tab4, tab5 = st.tabs([
                 "📊 Analyst Reports", 
                 "🔍 Research Team", 
@@ -655,25 +803,64 @@ if st.button("🚀 Start TradingAgents Analysis", disabled=not can_run, type="pr
             
             with tab1:
                 st.markdown("### Analyst Team Reports")
+                st.caption("Key insights from each analyst - click to expand for full details")
                 
                 if final_state.get("market_report"):
-                    with st.expander("📈 Market Analyst Report", expanded=True):
-                        st.markdown(final_state["market_report"])
+                    with st.expander("📈 Market Analyst Report", expanded=False):
+                        # Show key points
+                        key_points = extract_key_points(final_state["market_report"], max_points=5)
+                        if key_points:
+                            st.markdown("**🔑 Key Insights:**")
+                            for point in key_points:
+                                st.markdown(f"• {point}")
+                            st.markdown("---")
+                            with st.expander("📄 View Full Report"):
+                                st.markdown(final_state["market_report"])
+                        else:
+                            st.markdown(final_state["market_report"])
                 
                 if final_state.get("sentiment_report"):
-                    with st.expander("💬 Social Media Analyst Report", expanded=True):
-                        st.markdown(final_state["sentiment_report"])
+                    with st.expander("💬 Social Media Analyst Report", expanded=False):
+                        key_points = extract_key_points(final_state["sentiment_report"], max_points=5)
+                        if key_points:
+                            st.markdown("**🔑 Key Insights:**")
+                            for point in key_points:
+                                st.markdown(f"• {point}")
+                            st.markdown("---")
+                            with st.expander("📄 View Full Report"):
+                                st.markdown(final_state["sentiment_report"])
+                        else:
+                            st.markdown(final_state["sentiment_report"])
                 
                 if final_state.get("news_report"):
-                    with st.expander("📰 News Analyst Report", expanded=True):
-                        st.markdown(final_state["news_report"])
+                    with st.expander("📰 News Analyst Report", expanded=False):
+                        key_points = extract_key_points(final_state["news_report"], max_points=5)
+                        if key_points:
+                            st.markdown("**🔑 Key Insights:**")
+                            for point in key_points:
+                                st.markdown(f"• {point}")
+                            st.markdown("---")
+                            with st.expander("📄 View Full Report"):
+                                st.markdown(final_state["news_report"])
+                        else:
+                            st.markdown(final_state["news_report"])
                 
                 if final_state.get("fundamentals_report"):
-                    with st.expander("📊 Fundamentals Analyst Report", expanded=True):
-                        st.markdown(final_state["fundamentals_report"])
+                    with st.expander("📊 Fundamentals Analyst Report", expanded=False):
+                        key_points = extract_key_points(final_state["fundamentals_report"], max_points=5)
+                        if key_points:
+                            st.markdown("**🔑 Key Insights:**")
+                            for point in key_points:
+                                st.markdown(f"• {point}")
+                            st.markdown("---")
+                            with st.expander("📄 View Full Report"):
+                                st.markdown(final_state["fundamentals_report"])
+                        else:
+                            st.markdown(final_state["fundamentals_report"])
             
             with tab2:
                 st.markdown("### Research Team Analysis")
+                st.caption("Bull vs Bear debate with manager's decision")
                 
                 if final_state.get("investment_debate_state"):
                     debate_state = final_state["investment_debate_state"]
@@ -682,28 +869,61 @@ if st.button("🚀 Start TradingAgents Analysis", disabled=not can_run, type="pr
                     
                     with col1:
                         if debate_state.get("bull_history"):
-                            st.markdown("#### 🐂 Bull Researcher")
-                            st.info(debate_state["bull_history"])
+                            st.markdown("#### 🐂 Bull Researcher Arguments")
+                            bull_points = extract_key_points(debate_state["bull_history"], max_points=4)
+                            if bull_points:
+                                for point in bull_points:
+                                    st.success(f"✓ {point}")
+                                with st.expander("📄 View Full Bull Case"):
+                                    st.info(debate_state["bull_history"])
+                            else:
+                                st.info(debate_state["bull_history"])
                     
                     with col2:
                         if debate_state.get("bear_history"):
-                            st.markdown("#### 🐻 Bear Researcher")
-                            st.warning(debate_state["bear_history"])
+                            st.markdown("#### 🐻 Bear Researcher Arguments")
+                            bear_points = extract_key_points(debate_state["bear_history"], max_points=4)
+                            if bear_points:
+                                for point in bear_points:
+                                    st.error(f"✗ {point}")
+                                with st.expander("📄 View Full Bear Case"):
+                                    st.warning(debate_state["bear_history"])
+                            else:
+                                st.warning(debate_state["bear_history"])
                     
                     if debate_state.get("judge_decision"):
-                        st.markdown("#### 👨‍⚖️ Research Manager Decision")
-                        st.success(debate_state["judge_decision"])
+                        st.markdown("---")
+                        st.markdown("#### 👨‍⚖️ Research Manager's Final Assessment")
+                        judge_points = extract_key_points(debate_state["judge_decision"], max_points=4)
+                        if judge_points:
+                            for point in judge_points:
+                                st.markdown(f"**➤** {point}")
+                            with st.expander("📄 View Complete Decision"):
+                                st.success(debate_state["judge_decision"])
+                        else:
+                            st.success(debate_state["judge_decision"])
             
             with tab3:
                 st.markdown("### Trading Team Plan")
+                st.caption("Actionable trading strategy and execution plan")
                 
                 if final_state.get("trader_investment_plan"):
-                    st.markdown(final_state["trader_investment_plan"])
+                    plan_points = extract_key_points(final_state["trader_investment_plan"], max_points=6)
+                    if plan_points:
+                        st.markdown("**🎯 Key Action Items:**")
+                        for idx, point in enumerate(plan_points, 1):
+                            st.markdown(f"{idx}. {point}")
+                        st.markdown("---")
+                        with st.expander("📄 View Complete Trading Plan"):
+                            st.markdown(final_state["trader_investment_plan"])
+                    else:
+                        st.markdown(final_state["trader_investment_plan"])
                 else:
                     st.info("No trading plan generated")
             
             with tab4:
                 st.markdown("### Risk Management Assessment")
+                st.caption("Multi-perspective risk analysis from different risk profiles")
                 
                 if final_state.get("risk_debate_state"):
                     risk_state = final_state["risk_debate_state"]
@@ -712,25 +932,56 @@ if st.button("🚀 Start TradingAgents Analysis", disabled=not can_run, type="pr
                     
                     with col1:
                         if risk_state.get("risky_history"):
-                            st.markdown("#### 🔴 Aggressive Analyst")
-                            st.error(risk_state["risky_history"])
+                            st.markdown("#### 🔴 Aggressive View")
+                            risky_points = extract_key_points(risk_state["risky_history"], max_points=3)
+                            if risky_points:
+                                for point in risky_points:
+                                    st.markdown(f"• {point[:120]}..." if len(point) > 120 else f"• {point}")
+                                with st.expander("📄 Full Analysis"):
+                                    st.error(risk_state["risky_history"])
+                            else:
+                                st.error(risk_state["risky_history"])
                     
                     with col2:
                         if risk_state.get("neutral_history"):
-                            st.markdown("#### 🟡 Neutral Analyst")
-                            st.warning(risk_state["neutral_history"])
+                            st.markdown("#### 🟡 Balanced View")
+                            neutral_points = extract_key_points(risk_state["neutral_history"], max_points=3)
+                            if neutral_points:
+                                for point in neutral_points:
+                                    st.markdown(f"• {point[:120]}..." if len(point) > 120 else f"• {point}")
+                                with st.expander("📄 Full Analysis"):
+                                    st.warning(risk_state["neutral_history"])
+                            else:
+                                st.warning(risk_state["neutral_history"])
                     
                     with col3:
                         if risk_state.get("safe_history"):
-                            st.markdown("#### 🟢 Conservative Analyst")
-                            st.success(risk_state["safe_history"])
+                            st.markdown("#### 🟢 Conservative View")
+                            safe_points = extract_key_points(risk_state["safe_history"], max_points=3)
+                            if safe_points:
+                                for point in safe_points:
+                                    st.markdown(f"• {point[:120]}..." if len(point) > 120 else f"• {point}")
+                                with st.expander("📄 Full Analysis"):
+                                    st.success(risk_state["safe_history"])
+                            else:
+                                st.success(risk_state["safe_history"])
             
             with tab5:
                 st.markdown("### 🏆 Portfolio Manager Final Decision")
                 st.caption(f"Based on analysis from {start_date.strftime('%d %b %Y')} to {end_date.strftime('%d %b %Y')}")
                 
                 if final_state.get("risk_debate_state", {}).get("judge_decision"):
-                    st.markdown(final_state["risk_debate_state"]["judge_decision"])
+                    judge_decision = final_state["risk_debate_state"]["judge_decision"]
+                    decision_points = extract_key_points(judge_decision, max_points=5)
+                    if decision_points:
+                        st.markdown("**📋 Key Decision Points:**")
+                        for idx, point in enumerate(decision_points, 1):
+                            st.markdown(f"{idx}. {point}")
+                        st.markdown("---")
+                        with st.expander("📄 View Complete Decision Rationale"):
+                            st.markdown(judge_decision)
+                    else:
+                        st.markdown(judge_decision)
                 
                 st.markdown("---")
                 st.markdown("#### 📋 Trading Signal")

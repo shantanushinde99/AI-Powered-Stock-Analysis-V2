@@ -4,7 +4,7 @@
     "exit_rules": "when price achieves 1:1 RR , i will trail my Stop loss to breakeven regardless of whatever the market is doing ,",
     "stop_loss": "my stop loss would be on previous 15 min candle ",
     "take_profit": "The take-profit target is set at a 1:2 risk-to-reward ratio.",
-    "strategy_description": "i will go on higher time frame to decide my bias , after that decideing my time window , which is asia session , when anytime after asia session open , ethereum will give me breakout or BOS , then after 15 min candle close i will enter - this is my entry system , my stop loss would be on previous 15 min candle and target is 1:2 RR , coming to exit strategy that when price achieves 1:1 RR , i will trail my Stop loss to breakeven regardless of whatever the market is doing",
+    "strategy_description": "i will go on higher time frame to decide my bias , after that decideing my time window , which is asia session , when anytime after asia session open , ethereum will give me breakout or BOS , then after 15 min candle close i will enter - this is my entry system , my stop loss would be on previous 15 min candle and target is 1:2 RR , coming to exit strategy that when price achieves 1:1 RR , i will trail my Stop loss to breakeven regardless of whatever the market is doing\n",
     "time_window": "Asia Session (1:30 AM - 2:30 PM)",
     "trades": [
         {

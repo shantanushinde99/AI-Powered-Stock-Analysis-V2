@@ -1,0 +1,21 @@
+﻿Date & Time,Instrument,Entry Price,Exit Price,Stop-Loss,Take-Profit,Result,R:R,Notes
+2025-12-20 18:31:00,BTC-USD,43675.59,44549.1,43238.83,44549.1,Win,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Take profit hit at 1 to 2 RR
+2025-12-21 14:53:00,BTC-USD,42387.99,41964.11,41964.11,43235.75,Loss,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Stop loss hit at 1 percent risk
+2025-12-22 19:04:00,BTC-USD,43504.01,43068.97,43068.97,44374.09,Loss,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Stop loss hit at 1 percent risk
+2025-12-23 18:09:00,BTC-USD,42966.53,43825.86,42536.86,43825.86,Win,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Take profit hit at 1 to 2 RR
+2025-12-24 21:26:00,BTC-USD,42348.6,41925.11,41925.11,43195.57,Loss,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Stop loss hit at 1 percent risk
+2025-12-25 17:34:00,BTC-USD,43159.18,42727.59,42727.59,44022.36,Loss,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Stop loss hit at 1 percent risk
+2025-12-26 13:59:00,BTC-USD,43617.71,44490.06,43181.53,44490.06,Win,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Take profit hit at 1 to 2 RR
+2025-12-27 17:27:00,BTC-USD,42346.15,41922.69,41922.69,43193.07,Loss,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Stop loss hit at 1 percent risk
+2025-12-28 17:02:00,BTC-USD,43478.16,44347.72,43043.38,44347.72,Win,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Take profit hit at 1 to 2 RR
+2025-12-29 18:34:00,BTC-USD,42349.1,43196.08,41925.61,43196.08,Win,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Take profit hit at 1 to 2 RR
+2025-12-30 14:20:00,BTC-USD,43936.47,43497.11,43497.11,44815.2,Loss,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Stop loss hit at 1 percent risk
+2025-12-31 21:49:00,BTC-USD,42133.89,41712.55,41712.55,42976.57,Loss,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Stop loss hit at 1 percent risk
+2026-01-01 21:18:00,BTC-USD,43392.05,44259.89,42958.13,44259.89,Win,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Take profit hit at 1 to 2 RR
+2026-01-02 20:56:00,BTC-USD,42284.05,41861.21,41861.21,43129.73,Loss,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Stop loss hit at 1 percent risk
+2026-01-03 13:36:00,BTC-USD,42941.94,43800.78,42512.52,43800.78,Win,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Take profit hit at 1 to 2 RR
+2026-01-04 19:35:00,BTC-USD,42819.0,42390.81,42390.81,43675.38,Loss,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Stop loss hit at 1 percent risk
+2026-01-05 14:24:00,BTC-USD,42058.67,42899.84,41638.08,42899.84,Win,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Take profit hit at 1 to 2 RR
+2026-01-06 16:53:00,BTC-USD,43819.23,44695.61,43381.04,44695.61,Win,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Take profit hit at 1 to 2 RR
+2026-01-07 13:38:00,BTC-USD,42509.37,43359.56,42084.28,43359.56,Win,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Take profit hit at 1 to 2 RR
+2026-01-08 15:58:00,BTC-USD,43417.62,42983.44,42983.44,44285.97,Loss,1:2,LONG trade | Price above EMA 50 and EMA 200 | RSI between 55 and 70 | Volume above average | London session | Stop loss hit at 1 percent risk
