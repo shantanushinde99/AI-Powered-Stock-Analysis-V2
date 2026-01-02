@@ -45,6 +45,12 @@ if 'rephrased_content' not in st.session_state:
 if 'compliance_analysis' not in st.session_state:
     st.session_state.compliance_analysis = None
 
+if 'knows_strategy_building' not in st.session_state:
+    st.session_state.knows_strategy_building = None
+
+if 'show_strategy_setup' not in st.session_state:
+    st.session_state.show_strategy_setup = False
+
 # File path for persistent storage
 DATA_DIR = Path("strategy_data")
 DATA_DIR.mkdir(exist_ok=True)
@@ -914,6 +920,74 @@ def create_equity_curve(trades_df):
     
     return fig
 
+def generate_example_strategies_with_gemini(api_key):
+    """Generate 2 basic example strategies using Gemini"""
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        
+        prompt = """Generate 2 VERY SIMPLE trading strategies that a complete beginner with NO technical knowledge can understand and implement. 
+
+For each strategy, provide:
+
+**Strategy Name:** [Creative but professional name]
+
+**Instrument:** [Suitable instrument like BTC-USD, AAPL, SPY, etc.]
+
+**Strategy Description:** [2-3 sentences explaining the overall approach in simple language]
+
+**Entry Rules:**
+[Clear bullet points with specific conditions for entering a trade]
+
+**Exit Rules:**
+[Clear bullet points with specific conditions for exiting a trade]
+
+**Stop-Loss Rules:**
+[Specific stop-loss placement rules with concrete examples]
+
+**Take-Profit Rules:**
+[Specific take-profit placement rules with concrete examples]
+
+**Time Window:** [Recommended trading session like "Asia Session", "London Session", "New York Session", or "None - Trade Anytime"]
+
+---
+
+CRITICAL REQUIREMENTS:
+- DO NOT use ANY technical indicators (NO RSI, MACD, EMA, SMA, Bollinger Bands, etc.)
+- DO NOT use complex chart patterns or jargon
+- DO NOT use mathematical formulas, variables, or expressions
+- Use ONLY concrete numbers in examples (like "100 dollars" or "5 percent" - write it out clearly)
+- Focus ONLY on simple concepts:
+  * Price going up or down
+  * Previous high or low prices
+  * Round numbers like 100, 1000, 50000
+  * Green candles (price went up) or red candles (price went down)
+  * Fixed dollar amounts for profit and loss
+  * Simple percentage changes (write as "3 percent" not "3%")
+  * Time-based rules (write as "24 hours" not "24h")
+
+FORMATTING RULES:
+- Use simple bullet points with dashes (-)
+- Write all numbers clearly with spaces
+- Use full words, not symbols or abbreviations
+- Keep sentences short and clear
+- Each bullet point should be one simple rule
+- Always use concrete example numbers
+
+EXAMPLE OF GOOD SIMPLE CONCEPTS:
+- "Buy when the price drops by 50 dollars from yesterday's closing price"
+- "Sell when you make 100 dollars profit"
+- "Place your stop-loss 20 dollars below your entry price"
+- "Exit the trade after two red candles in a row"
+- "Buy when price goes above yesterday's highest price"
+
+Generate 2 SIMPLE strategies now with CLEAR, READABLE text:"""
+        
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Error generating strategies: {str(e)}"
+
 # Main UI
 st.title("📊 Strategy Developer & Winning Rate")
 st.markdown("**Develop, track, and analyze your trading strategy with AI-powered insights**")
@@ -956,221 +1030,321 @@ tab1, tab2, tab3, tab4 = st.tabs(["🎯 Strategy Setup", "📊 Trade Logging", "
 
 # TAB 1: Strategy Setup
 with tab1:
-    st.header("1️⃣ Instrument & Strategy Definition")
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.subheader("📍 Instrument Selection")
+    # Check if user knows how to build a strategy
+    if st.session_state.knows_strategy_building is None:
+        st.header("🤔 Before We Begin...")
+        st.markdown("### Do you know how to build a trading strategy?")
         
-        # Instrument input with validation
-        instrument_input = st.text_input(
-            "Enter Instrument Name",
-            value=st.session_state.strategy_data['instrument'] or '',
-            help="e.g., BTC/USDT, GOLD, NIFTY, AAPL",
-            key='instrument_input'
-        )
+        col1, col2 = st.columns(2)
         
-        if st.button("Load/Create Strategy", type="primary"):
-            if instrument_input:
-                instrument_input = instrument_input.strip().upper()
-                # Try to load existing data
-                loaded_data = load_strategy_data(instrument_input)
-                if loaded_data:
-                    st.session_state.strategy_data = loaded_data
-                    st.success(f"✅ Loaded existing strategy for {instrument_input}")
-                else:
-                    st.session_state.strategy_data['instrument'] = instrument_input
-                    st.success(f"✅ Created new strategy for {instrument_input}")
+        with col1:
+            if st.button("✅ Yes, I know", type="primary", use_container_width=True):
+                st.session_state.knows_strategy_building = True
+                st.session_state.show_strategy_setup = True
                 st.rerun()
-            else:
-                st.error("Please enter an instrument name")
         
-        if st.session_state.strategy_data['instrument']:
-            st.info(f"**Current Instrument:** {st.session_state.strategy_data['instrument']}")
-            st.caption("⚠️ All trades must belong to this instrument")
-    
-    with col2:
-        st.subheader("📝 Strategy Description")
-        strategy_desc = st.text_area(
-            "Describe your trading strategy",
-            value=st.session_state.strategy_data.get('strategy_description', ''),
-            height=150,
-            help="Explain your overall approach, market conditions, timeframe, etc.",
-            key='strategy_description_input'
-        )
-        if strategy_desc != st.session_state.strategy_data.get('strategy_description', ''):
-            st.session_state.strategy_data['strategy_description'] = strategy_desc
-            if st.session_state.strategy_data['instrument']:
-                save_strategy_data()
-    
-    st.markdown("---")
-    
-    # Time Window / Trading Session Selection
-    st.header("🕐 Trading Time Window")
-    st.markdown("Select your preferred trading session based on market activity.")
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        time_window_options = {
-            "None - Trade Anytime": None,
-            "Asia Session (1:30 AM - 2:30 PM)": "Asia Session (1:30 AM - 2:30 PM)",
-            "London Session (1:30 PM - 10:30 PM)": "London Session (1:30 PM - 10:30 PM)",
-            "New York Session (5:30 PM - 2:30 AM)": "New York Session (5:30 PM - 2:30 AM)"
-        }
+        with col2:
+            if st.button("❌ No, I need help", type="secondary", use_container_width=True):
+                st.session_state.knows_strategy_building = False
+                st.session_state.show_strategy_setup = False
+                st.rerun()
         
-        current_selection = st.session_state.strategy_data.get('time_window', None)
-        # Find the key for the current selection
-        current_key = "None - Trade Anytime"
-        for key, value in time_window_options.items():
-            if value == current_selection:
-                current_key = key
-                break
-        
-        selected_window = st.selectbox(
-            "Select Trading Session",
-            options=list(time_window_options.keys()),
-            index=list(time_window_options.keys()).index(current_key),
-            help="Choose the market session that aligns with your strategy",
-            key='time_window_select'
-        )
-        
-        selected_value = time_window_options[selected_window]
-        if selected_value != st.session_state.strategy_data.get('time_window', None):
-            st.session_state.strategy_data['time_window'] = selected_value
-            if st.session_state.strategy_data['instrument']:
-                save_strategy_data()
-    
-    with col2:
-        st.markdown("""  
-        **Session Info:**
-        
-        🌏 **Asia**: Low-medium volatility  
-        🇬🇧 **London**: High volatility  
-        🇺🇸 **New York**: High volatility  
-        
-        *All times in IST (Indian Standard Time)*
-        """)
-    
-    st.caption("📊 Source: [Forex Market Hours - BabyPips](https://www.babypips.com/tools/forex-market-hours)")
-    
-    st.markdown("---")
-    st.header("2️⃣ Trade System Components")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📥 Entry Rules")
-        entry_rules = st.text_area(
-            "Define your entry conditions",
-            value=st.session_state.strategy_data.get('entry_rules', ''),
-            height=150,
-            help="Be specific: indicators, price action, patterns, etc.",
-            key='entry_rules_input'
-        )
-        if entry_rules != st.session_state.strategy_data.get('entry_rules', ''):
-            st.session_state.strategy_data['entry_rules'] = entry_rules
-            if st.session_state.strategy_data['instrument']:
-                save_strategy_data()
-        
-        st.subheader("🛑 Stop-Loss Rules")
-        stop_loss_rules = st.text_area(
-            "Define your stop-loss placement",
-            value=st.session_state.strategy_data.get('stop_loss', ''),
-            height=100,
-            help="How and where you place stop-losses",
-            key='stop_loss_input'
-        )
-        if stop_loss_rules != st.session_state.strategy_data.get('stop_loss', ''):
-            st.session_state.strategy_data['stop_loss'] = stop_loss_rules
-            if st.session_state.strategy_data['instrument']:
-                save_strategy_data()
-    
-    with col2:
-        st.subheader("📤 Exit Rules")
-        exit_rules = st.text_area(
-            "Define your exit conditions",
-            value=st.session_state.strategy_data.get('exit_rules', ''),
-            height=150,
-            help="When and how you exit trades (profit or loss)",
-            key='exit_rules_input'
-        )
-        if exit_rules != st.session_state.strategy_data.get('exit_rules', ''):
-            st.session_state.strategy_data['exit_rules'] = exit_rules
-            if st.session_state.strategy_data['instrument']:
-                save_strategy_data()
-        
-        st.subheader("🎯 Take-Profit Rules")
-        take_profit_rules = st.text_area(
-            "Define your take-profit strategy",
-            value=st.session_state.strategy_data.get('take_profit', ''),
-            height=100,
-            help="How you lock in profits (fixed target, trailing, etc.)",
-            key='take_profit_input'
-        )
-        if take_profit_rules != st.session_state.strategy_data.get('take_profit', ''):
-            st.session_state.strategy_data['take_profit'] = take_profit_rules
-            if st.session_state.strategy_data['instrument']:
-                save_strategy_data()
-    
-    # Analyze button section
-    st.markdown("---")
-    st.header("🤖 AI-Powered Strategy Rephrasing")
-    st.markdown("Use Groq AI to rephrase and grammatically correct your strategy inputs without changing their meaning.")
-    
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.info("💡 The AI will only fix grammar and sentence structure - it won't add or remove your content.")
-    with col2:
-        if st.button("✨ Analyze", type="primary", use_container_width=True):
-            if not st.session_state.groq_api_key:
-                st.error("❌ Please enter your Groq API Key in the sidebar first!")
-            elif not st.session_state.strategy_data['instrument']:
-                st.error("❌ Please enter an instrument name first!")
-            else:
-                # Check if user has entered any strategy content
-                has_content = any([
-                    st.session_state.strategy_data.get('strategy_description', ''),
-                    st.session_state.strategy_data.get('entry_rules', ''),
-                    st.session_state.strategy_data.get('exit_rules', ''),
-                    st.session_state.strategy_data.get('stop_loss', ''),
-                    st.session_state.strategy_data.get('take_profit', '')
-                ])
-                
-                if not has_content:
-                    st.warning("⚠️ Please enter at least one strategy component before analyzing.")
-                else:
-                    with st.spinner("🔄 Analyzing and rephrasing your strategy..."):
-                        rephrased = rephrase_strategy_with_groq(
-                            instrument=st.session_state.strategy_data.get('instrument', ''),
-                            strategy_description=st.session_state.strategy_data.get('strategy_description', ''),
-                            entry_rules=st.session_state.strategy_data.get('entry_rules', ''),
-                            exit_rules=st.session_state.strategy_data.get('exit_rules', ''),
-                            stop_loss=st.session_state.strategy_data.get('stop_loss', ''),
-                            take_profit=st.session_state.strategy_data.get('take_profit', ''),
-                            api_key=st.session_state.groq_api_key
-                        )
-                        st.session_state.rephrased_content = rephrased
-                        st.success("✅ Analysis complete! Review the rephrased version below.")
-    
-    # Display rephrased content if available
-    if st.session_state.rephrased_content:
         st.markdown("---")
-        st.subheader("📝 Rephrased Strategy")
+        st.info("💡 **Tip:** Choose honestly! If you're new to trading strategies, we'll provide educational resources and examples to help you get started.")
+    
+    # If user doesn't know how to build a strategy
+    elif st.session_state.knows_strategy_building == False:
+        st.header("📚 Learn About Trading Strategies")
         
-        with st.expander("🔍 View Rephrased Content", expanded=True):
-            st.markdown(st.session_state.rephrased_content)
+        st.markdown("""
+        ### Welcome to Strategy Development! 🎓
+        
+        A trading strategy is a set of rules that define when to enter and exit trades. Before building your own, 
+        it's important to understand the fundamentals. Here are some resources to help you get started:
+        """)
+        
+        st.markdown("---")
+        
+        # Educational Videos Section
+        st.subheader("🎥 Watch These Educational Videos")
+        st.markdown("These videos will teach you the basics of trading strategies:")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### 📺 Video 1: Trading Strategy Fundamentals")
+            video1_path = Path("videos/video1.mp4")
+            if video1_path.exists():
+                st.video(str(video1_path))
+            else:
+                st.info("📹 Video file not found. Please add `video1.mp4` to the `videos` folder.")
+                st.markdown("[Watch on YouTube](https://www.youtube.com/watch?v=8Cm4aNm488w)")
+            st.caption("Learn the basics of what makes a good trading strategy")
+        
+        with col2:
+            st.markdown("#### 📺 Video 2: Building Your First Strategy")
+            video2_path = Path("videos/video2.mp4")
+            if video2_path.exists():
+                st.video(str(video2_path))
+            else:
+                st.info("📹 Video file not found. Please add `video2.mp4` to the `videos` folder.")
+                st.markdown("[Watch on YouTube](https://www.youtube.com/watch?v=qni31FmI0ys)")
+            st.caption("Step-by-step guide to developing your trading strategy")
+        
+        st.markdown("---")
+        
+        # AI Generated Example Strategies Section
+        st.subheader("🤖 AI-Generated Example Strategies")
+        st.markdown("Let our AI create 2 simple example strategies to help you understand the structure:")
+        
+        if st.button("🚀 Generate Example Strategies with Gemini", type="primary"):
+            if not st.session_state.gemini_api_key:
+                st.error("⚠️ Please enter your Gemini API key in the sidebar first!")
+            else:
+                with st.spinner("🔄 Generating example strategies... This may take a moment."):
+                    example_strategies = generate_example_strategies_with_gemini(st.session_state.gemini_api_key)
+                    
+                    if example_strategies and not example_strategies.startswith("Error"):
+                        st.success("✅ Example strategies generated successfully!")
+                        st.markdown("---")
+                        st.markdown(example_strategies)
+                    else:
+                        st.error(f"❌ {example_strategies}")
+        
+        st.markdown("---")
+        
+        # Option to proceed after learning
+        st.subheader("📝 Ready to Build Your Own Strategy?")
+        st.markdown("Once you've watched the videos and reviewed the examples, you can proceed to build your own strategy.")
+        
+        col1, col2, col3 = st.columns([1, 1, 1])
+        
+        with col2:
+            if st.button("✅ I'm Ready! Show Me the Setup", type="primary", use_container_width=True):
+                st.session_state.knows_strategy_building = True
+                st.session_state.show_strategy_setup = True
+                st.rerun()
+        
+        st.markdown("---")
+        st.info("💡 **Tip:** Take your time to learn! Building a solid strategy foundation is crucial for trading success.")
+    
+    # If user knows how to build a strategy OR has completed learning
+    elif st.session_state.knows_strategy_building == True or st.session_state.show_strategy_setup == True:
+        st.header("1️⃣ Instrument & Strategy Definition")
+    
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            st.subheader("📍 Instrument Selection")
             
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("📋 Copy to Clipboard"):
-                    st.code(st.session_state.rephrased_content, language=None)
-                    st.info("💡 Select and copy the text from the code block above")
-            with col2:
-                if st.button("🗑️ Clear Rephrased Content"):
-                    st.session_state.rephrased_content = None
+            # Instrument input with validation
+            instrument_input = st.text_input(
+                "Enter Instrument Name",
+                value=st.session_state.strategy_data['instrument'] or '',
+                help="e.g., BTC/USDT, GOLD, NIFTY, AAPL",
+                key='instrument_input'
+            )
+            
+            if st.button("Load/Create Strategy", type="primary"):
+                if instrument_input:
+                    instrument_input = instrument_input.strip().upper()
+                    # Try to load existing data
+                    loaded_data = load_strategy_data(instrument_input)
+                    if loaded_data:
+                        st.session_state.strategy_data = loaded_data
+                        st.success(f"✅ Loaded existing strategy for {instrument_input}")
+                    else:
+                        st.session_state.strategy_data['instrument'] = instrument_input
+                        st.success(f"✅ Created new strategy for {instrument_input}")
                     st.rerun()
+                else:
+                    st.error("Please enter an instrument name")
+            
+            if st.session_state.strategy_data['instrument']:
+                st.info(f"**Current Instrument:** {st.session_state.strategy_data['instrument']}")
+                st.caption("⚠️ All trades must belong to this instrument")
+        
+        with col2:
+            st.subheader("📝 Strategy Description")
+            strategy_desc = st.text_area(
+                "Describe your trading strategy",
+                value=st.session_state.strategy_data.get('strategy_description', ''),
+                height=150,
+                help="Explain your overall approach, market conditions, timeframe, etc.",
+                key='strategy_description_input'
+            )
+            if strategy_desc != st.session_state.strategy_data.get('strategy_description', ''):
+                st.session_state.strategy_data['strategy_description'] = strategy_desc
+                if st.session_state.strategy_data['instrument']:
+                    save_strategy_data()
+        
+        st.markdown("---")
+        
+        # Time Window / Trading Session Selection
+        st.header("🕐 Trading Time Window")
+        st.markdown("Select your preferred trading session based on market activity.")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            time_window_options = {
+                "None - Trade Anytime": None,
+                "Asia Session (1:30 AM - 2:30 PM)": "Asia Session (1:30 AM - 2:30 PM)",
+                "London Session (1:30 PM - 10:30 PM)": "London Session (1:30 PM - 10:30 PM)",
+                "New York Session (5:30 PM - 2:30 AM)": "New York Session (5:30 PM - 2:30 AM)"
+            }
+            
+            current_selection = st.session_state.strategy_data.get('time_window', None)
+            # Find the key for the current selection
+            current_key = "None - Trade Anytime"
+            for key, value in time_window_options.items():
+                if value == current_selection:
+                    current_key = key
+                    break
+            
+            selected_window = st.selectbox(
+                "Select Trading Session",
+                options=list(time_window_options.keys()),
+                index=list(time_window_options.keys()).index(current_key),
+                help="Choose the market session that aligns with your strategy",
+                key='time_window_select'
+            )
+            
+            selected_value = time_window_options[selected_window]
+            if selected_value != st.session_state.strategy_data.get('time_window', None):
+                st.session_state.strategy_data['time_window'] = selected_value
+                if st.session_state.strategy_data['instrument']:
+                    save_strategy_data()
+        
+        with col2:
+            st.markdown("""  
+            **Session Info:**
+            
+            🌏 **Asia**: Low-medium volatility  
+            🇬🇧 **London**: High volatility  
+            🇺🇸 **New York**: High volatility  
+            
+            *All times in IST (Indian Standard Time)*
+            """)
+        
+        st.caption("📊 Source: [Forex Market Hours - BabyPips](https://www.babypips.com/tools/forex-market-hours)")
+        
+        st.markdown("---")
+        st.header("2️⃣ Trade System Components")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("📥 Entry Rules")
+            entry_rules = st.text_area(
+                "Define your entry conditions",
+                value=st.session_state.strategy_data.get('entry_rules', ''),
+                height=150,
+                help="Be specific: indicators, price action, patterns, etc.",
+                key='entry_rules_input'
+            )
+            if entry_rules != st.session_state.strategy_data.get('entry_rules', ''):
+                st.session_state.strategy_data['entry_rules'] = entry_rules
+                if st.session_state.strategy_data['instrument']:
+                    save_strategy_data()
+            
+            st.subheader("🛑 Stop-Loss Rules")
+            stop_loss_rules = st.text_area(
+                "Define your stop-loss placement",
+                value=st.session_state.strategy_data.get('stop_loss', ''),
+                height=100,
+                help="How and where you place stop-losses",
+                key='stop_loss_input'
+            )
+            if stop_loss_rules != st.session_state.strategy_data.get('stop_loss', ''):
+                st.session_state.strategy_data['stop_loss'] = stop_loss_rules
+                if st.session_state.strategy_data['instrument']:
+                    save_strategy_data()
+        
+        with col2:
+            st.subheader("📤 Exit Rules")
+            exit_rules = st.text_area(
+                "Define your exit conditions",
+                value=st.session_state.strategy_data.get('exit_rules', ''),
+                height=150,
+                help="When and how you exit trades (profit or loss)",
+                key='exit_rules_input'
+            )
+            if exit_rules != st.session_state.strategy_data.get('exit_rules', ''):
+                st.session_state.strategy_data['exit_rules'] = exit_rules
+                if st.session_state.strategy_data['instrument']:
+                    save_strategy_data()
+            
+            st.subheader("🎯 Take-Profit Rules")
+            take_profit_rules = st.text_area(
+                "Define your take-profit strategy",
+                value=st.session_state.strategy_data.get('take_profit', ''),
+                height=100,
+                help="How you lock in profits (fixed target, trailing, etc.)",
+                key='take_profit_input'
+            )
+            if take_profit_rules != st.session_state.strategy_data.get('take_profit', ''):
+                st.session_state.strategy_data['take_profit'] = take_profit_rules
+                if st.session_state.strategy_data['instrument']:
+                    save_strategy_data()
+        
+        # Analyze button section
+        st.markdown("---")
+        st.header("🤖 AI-Powered Strategy Rephrasing")
+        st.markdown("Use Groq AI to rephrase and grammatically correct your strategy inputs without changing their meaning.")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.info("💡 The AI will only fix grammar and sentence structure - it won't add or remove your content.")
+        with col2:
+            if st.button("✨ Analyze", type="primary", use_container_width=True):
+                if not st.session_state.groq_api_key:
+                    st.error("❌ Please enter your Groq API Key in the sidebar first!")
+                elif not st.session_state.strategy_data['instrument']:
+                    st.error("❌ Please enter an instrument name first!")
+                else:
+                    # Check if user has entered any strategy content
+                    has_content = any([
+                        st.session_state.strategy_data.get('strategy_description', ''),
+                        st.session_state.strategy_data.get('entry_rules', ''),
+                        st.session_state.strategy_data.get('exit_rules', ''),
+                        st.session_state.strategy_data.get('stop_loss', ''),
+                        st.session_state.strategy_data.get('take_profit', '')
+                    ])
+                    
+                    if not has_content:
+                        st.warning("⚠️ Please enter at least one strategy component before analyzing.")
+                    else:
+                        with st.spinner("🔄 Analyzing and rephrasing your strategy..."):
+                            rephrased = rephrase_strategy_with_groq(
+                                instrument=st.session_state.strategy_data.get('instrument', ''),
+                                strategy_description=st.session_state.strategy_data.get('strategy_description', ''),
+                                entry_rules=st.session_state.strategy_data.get('entry_rules', ''),
+                                exit_rules=st.session_state.strategy_data.get('exit_rules', ''),
+                                stop_loss=st.session_state.strategy_data.get('stop_loss', ''),
+                                take_profit=st.session_state.strategy_data.get('take_profit', ''),
+                                api_key=st.session_state.groq_api_key
+                            )
+                            st.session_state.rephrased_content = rephrased
+                            st.success("✅ Analysis complete! Review the rephrased version below.")
+        
+        # Display rephrased content if available
+        if st.session_state.rephrased_content:
+            st.markdown("---")
+            st.subheader("📝 Rephrased Strategy")
+            
+            with st.expander("🔍 View Rephrased Content", expanded=True):
+                st.markdown(st.session_state.rephrased_content)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("📋 Copy to Clipboard"):
+                        st.code(st.session_state.rephrased_content, language=None)
+                        st.info("💡 Select and copy the text from the code block above")
+                with col2:
+                    if st.button("🗑️ Clear Rephrased Content"):
+                        st.session_state.rephrased_content = None
+                        st.rerun()
 
 # TAB 2: Trade Logging
 with tab2:
