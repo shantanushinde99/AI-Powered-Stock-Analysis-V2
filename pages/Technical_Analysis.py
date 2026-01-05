@@ -4,6 +4,43 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import yfinance as yf
 from datetime import datetime, date
+import sys
+import os
+
+# Add parent path
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+from utils.styles import get_tradeguide_styles, get_sidebar_html, get_page_header
+
+# Page config
+st.set_page_config(
+    page_title="Technical Analysis - TradeGuide AI",
+    page_icon="📈",
+    layout="wide"
+)
+
+# Apply shared styles
+st.markdown(get_tradeguide_styles(), unsafe_allow_html=True)
+
+# Sidebar
+with st.sidebar:
+    # Branding - icon and title
+    st.markdown("""
+    <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0 15px 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 15px;">
+        <span style="font-size: 28px;">📈</span>
+        <span style="font-size: 1.1rem; font-weight: 700; color: #1e293b;">Trade<span style='color: #0ea5e9;'>Guide</span> AI</span>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('<div class="nav-section-label">Navigation</div>', unsafe_allow_html=True)
+    st.page_link("Home Page.py", label="🏠  Home")
+    st.page_link("pages/Trading_Dashboard.py", label="📊  Trading Dashboard")
+    st.page_link("pages/Technical_Analysis.py", label="📈  Technical Analysis")
+    st.page_link("pages/Strategy_Developer.py", label="🎯  Strategy Developer")
+    st.page_link("pages/Investment_Strategist.py", label="💡  Investment Strategist")
+    st.page_link("pages/Candle Stick Chart.py", label="🕯️  Candlestick Charts")
+
+# Page Header
+st.markdown(get_page_header("📈 Technical Analysis", "Visualize market trends with charts and indicators"), unsafe_allow_html=True)
 
 # Fetch S&P 500 companies
 @st.cache_data
@@ -128,7 +165,7 @@ else:
     rsi_lower = exp_rsi.number_input("RSI Lower", 10, 50, 30)
 
     # Main App Title
-    st.title("📊 Technical Analysis Dashboard (Powered by Yahoo Finance)")
+    st.title("📊 Technical Analysis Dashboard ")
     st.markdown("""
     Select a stock from the S&P 500 and apply technical indicators for visual analysis.
     """)

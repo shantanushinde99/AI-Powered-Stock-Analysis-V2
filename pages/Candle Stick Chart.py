@@ -2,12 +2,44 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
-from bokeh.plotting import figure, column
-from bokeh.models import WheelZoomTool, PanTool, BoxZoomTool, ResetTool
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import talib
 import numpy as np
+import sys
+import os
+import requests
 
-st.set_page_config(layout="wide", page_title="S&P 500 Candlestick App")
+# Add parent path
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+from utils.styles import get_tradeguide_styles, get_sidebar_html, get_page_header
+
+# Page config
+st.set_page_config(layout="wide", page_title="Candlestick Charts - TradeGuide AI", page_icon="🕯️")
+
+# Apply shared styles
+st.markdown(get_tradeguide_styles(), unsafe_allow_html=True)
+
+# Sidebar
+with st.sidebar:
+    # Branding - icon and title
+    st.markdown("""
+    <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0 15px 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 15px;">
+        <span style="font-size: 28px;">📈</span>
+        <span style="font-size: 1.1rem; font-weight: 700; color: #1e293b;">Trade<span style='color: #0ea5e9;'>Guide</span> AI</span>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('<div class="nav-section-label">Navigation</div>', unsafe_allow_html=True)
+    st.page_link("Home Page.py", label="🏠  Home")
+    st.page_link("pages/Trading_Dashboard.py", label="📊  Trading Dashboard")
+    st.page_link("pages/Technical_Analysis.py", label="📈  Technical Analysis")
+    st.page_link("pages/Strategy_Developer.py", label="🎯  Strategy Developer")
+    st.page_link("pages/Investment_Strategist.py", label="💡  Investment Strategist")
+    st.page_link("pages/Candle Stick Chart.py", label="🕯️  Candlestick Charts")
+
+# Page Header
+st.markdown(get_page_header("🕯️ Candlestick Charts", "Learn to read candlestick patterns with interactive charts"), unsafe_allow_html=True)
 
 # Define colors for multi-stock comparison
 COLORS = ["blue", "red", "green", "orange", "purple", "cyan", "magenta", "yellow"]
@@ -91,15 +123,68 @@ def get_financial_metrics(symbol):
         st.error(f"Error fetching financial metrics for {symbol}: {e}")
         return {"P/E Ratio": "N/A", "Market Cap": "N/A", "Dividend Yield": "N/A"}
 
-# Fetch stock news
-@st.cache_data
-def get_stock_news(symbol):
+# Fetch market status from Finnhub
+@st.cache_data(ttl=60)
+def get_market_status(api_key):
     try:
-        ticker = yf.Ticker(symbol)
-        news = ticker.news[:5]
-        return [{"title": item["title"], "link": item.get("link", "#")} for item in news]
+        url = f"https://finnhub.io/api/v1/stock/market-status?exchange=US&token={api_key}"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                "exchange": data.get("exchange", "US"),
+                "timezone": data.get("timezone", "America/New_York"),
+                "status": data.get("isOpen", False),
+                "session": data.get("session", "N/A")
+            }
+        else:
+            return None
     except Exception as e:
-        st.error(f"Error fetching news for {symbol}: {e}")
+        st.error(f"Error fetching market status: {e}")
+        return None
+
+# Fetch general market news from Finnhub
+@st.cache_data(ttl=300)
+def get_market_news(api_key, category="general"):
+    try:
+        url = f"https://finnhub.io/api/v1/news?category={category}&token={api_key}"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            news = response.json()[:5]  # Get top 5 news
+            return [{"title": item.get("headline", "No title"), 
+                    "link": item.get("url", "#"),
+                    "source": item.get("source", "Unknown"),
+                    "summary": item.get("summary", "")[:150] + "..." if item.get("summary") else ""} 
+                   for item in news]
+        else:
+            return []
+    except Exception as e:
+        st.error(f"Error fetching market news: {e}")
+        return []
+
+# Fetch company-specific news from Finnhub
+@st.cache_data(ttl=300)
+def get_company_news(symbol, api_key, from_date=None, to_date=None):
+    try:
+        if not from_date:
+            from_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+        if not to_date:
+            to_date = datetime.now().strftime("%Y-%m-%d")
+        
+        url = f"https://finnhub.io/api/v1/company-news?symbol={symbol}&from={from_date}&to={to_date}&token={api_key}"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            news = response.json()[:5]  # Get top 5 news
+            return [{"title": item.get("headline", "No title"), 
+                    "link": item.get("url", "#"),
+                    "source": item.get("source", "Unknown"),
+                    "datetime": datetime.fromtimestamp(item.get("datetime", 0)).strftime("%Y-%m-%d %H:%M") if item.get("datetime") else "N/A",
+                    "summary": item.get("summary", "")[:150] + "..." if item.get("summary") else ""} 
+                   for item in news]
+        else:
+            return []
+    except Exception as e:
+        st.error(f"Error fetching company news for {symbol}: {e}")
         return []
 
 # Process data with technical indicators and candlestick patterns
@@ -184,48 +269,128 @@ def convert_df_to_csv(df):
     df["Date"] = df["Date"].dt.strftime("%Y-%m-%d %H:%M:%S")
     return df.to_csv(index=False).encode("utf-8")
 
-# Create candlestick chart with multiple stocks
+# Create candlestick chart with multiple stocks using Plotly
 indicator_colors = {"SMA": "orange", "EMA": "violet", "WMA": "blue", "RSI": "yellow", "MOM": "black", "DEMA": "red", 
                     "MA": "tomato", "TEMA": "dodgerblue"}
 
 def create_chart(dfs, symbols, close_line=False, include_vol=False, indicators=[], price_alerts=None, multi_stock=False):
-    tools = [WheelZoomTool(), PanTool(), BoxZoomTool(), ResetTool()]
-    candle = figure(x_axis_type="datetime", height=500, tools=tools, tooltips=[("Date", "@Date_str"), ("Open", "@Open"), 
-                                                                               ("High", "@High"), ("Low", "@Low"), ("Close", "@Close")])
+    # Create subplots with volume if needed
+    if include_vol and not multi_stock:
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                           vertical_spacing=0.03, 
+                           row_heights=[0.7, 0.3],
+                           subplot_titles=('Price', 'Volume'))
+    else:
+        fig = go.Figure()
     
     for idx, (df, symbol) in enumerate(zip(dfs, symbols)):
         if multi_stock:
             df["Normalized_Close"] = df["Close"] / df["Close"].iloc[0]
             color = COLORS[idx % len(COLORS)]
-            candle.line("Date", "Normalized_Close", color=color, legend_label=symbol, source=df)
+            trace = go.Scatter(x=df["Date"], y=df["Normalized_Close"], 
+                             mode='lines', name=symbol, line=dict(color=color))
+            fig.add_trace(trace)
         else:
-            candle.segment("Date", "Low", "Date", "High", color="black", line_width=0.5, source=df)
-            candle.segment("Date", "Open", "Date", "Close", line_color="BarColor", line_width=2 if len(df)>100 else 6, source=df)
+            # Add candlestick
+            candlestick = go.Candlestick(
+                x=df['Date'],
+                open=df['Open'],
+                high=df['High'],
+                low=df['Low'],
+                close=df['Close'],
+                name=symbol,
+                increasing_line_color='green',
+                decreasing_line_color='red'
+            )
+            
+            if include_vol:
+                fig.add_trace(candlestick, row=1, col=1)
+            else:
+                fig.add_trace(candlestick)
+            
+            # Add close line if requested
             if close_line:
-                candle.line("Date", "Close", color="black", source=df)
+                close_trace = go.Scatter(x=df['Date'], y=df['Close'], 
+                                       mode='lines', name='Close', 
+                                       line=dict(color='black', width=1))
+                if include_vol:
+                    fig.add_trace(close_trace, row=1, col=1)
+                else:
+                    fig.add_trace(close_trace)
+            
+            # Add technical indicators
             for indicator in indicators:
-                candle.line("Date", indicator, color=indicator_colors[indicator], line_width=2, source=df, legend_label=indicator)
+                if indicator in df.columns:
+                    ind_trace = go.Scatter(x=df['Date'], y=df[indicator], 
+                                         mode='lines', name=indicator,
+                                         line=dict(color=indicator_colors.get(indicator, 'gray'), width=2))
+                    if include_vol:
+                        fig.add_trace(ind_trace, row=1, col=1)
+                    else:
+                        fig.add_trace(ind_trace)
+            
+            # Add volume bars
+            if include_vol:
+                colors = ['red' if df['Open'].iloc[i] > df['Close'].iloc[i] else 'green' 
+                         for i in range(len(df))]
+                volume_trace = go.Bar(x=df['Date'], y=df['Volume'], 
+                                    name='Volume', marker_color=colors, 
+                                    showlegend=False)
+                fig.add_trace(volume_trace, row=2, col=1)
     
+    # Add price alerts
     if price_alerts and not multi_stock:
         for level, color in price_alerts.items():
-            candle.line(y=level, x=[dfs[0].Date.min(), dfs[0].Date.max()], line_color=color, line_dash="dashed")
-
-    candle.xaxis.axis_label = "Date"
-    candle.yaxis.axis_label = "Price ($)" if not multi_stock else "Normalized Price"
-    candle.legend.click_policy = "hide"
-
-    volume = None
+            alert_line = go.Scatter(
+                x=[dfs[0]['Date'].min(), dfs[0]['Date'].max()],
+                y=[level, level],
+                mode='lines',
+                name=f'Alert ${level}',
+                line=dict(color=color, dash='dash', width=2)
+            )
+            if include_vol:
+                fig.add_trace(alert_line, row=1, col=1)
+            else:
+                fig.add_trace(alert_line)
+    
+    # Update layout
+    fig.update_layout(
+        height=650 if include_vol else 500,
+        xaxis_title='Date',
+        yaxis_title='Price ($)' if not multi_stock else 'Normalized Price',
+        hovermode='x unified',
+        template='plotly_white',
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    
     if include_vol and not multi_stock:
-        volume = figure(x_axis_type="datetime", height=150, x_range=candle.x_range)
-        volume.segment("Date", 0, "Date", "Volume", line_width=2 if len(dfs[0])>100 else 6, line_color="BarColor", alpha=0.8, source=dfs[0])
-        volume.yaxis.axis_label = "Volume"
-
-    return column(children=[candle, volume], sizing_mode="scale_width") if volume else candle
+        fig.update_xaxes(title_text="Date", row=2, col=1)
+        fig.update_yaxes(title_text="Price ($)", row=1, col=1)
+        fig.update_yaxes(title_text="Volume", row=2, col=1)
+    
+    fig.update_xaxes(rangeslider_visible=False)
+    
+    return fig
 
 # Dashboard
 st.title(":green[Candle]:red[stick] Pattern Technical Analysis :tea: :coffee:")
 
 # Sidebar for controls
+st.sidebar.markdown("#### 🔑 Finnhub API Key")
+finnhub_api_key = st.sidebar.text_input(
+    "Enter Finnhub API Key",
+    type="password",
+    value=os.getenv("FINNHUB_API_KEY", ""),
+    help="Get your free API key from https://finnhub.io/"
+)
+if finnhub_api_key:
+    os.environ["FINNHUB_API_KEY"] = finnhub_api_key
+    st.sidebar.success("✅ API key set")
+else:
+    st.sidebar.warning("⚠️ Finnhub API key required for news")
+
+st.sidebar.markdown("---")
 st.sidebar.markdown("#### S&P 500 Company Selection")
 tickers, tickers_companies_dict = get_sp500_components()
 if tickers:
@@ -300,7 +465,7 @@ if selected_companies:
             st.error(f"Failed to load data for {company}.")
 
     if dfs:
-        st.bokeh_chart(create_chart(dfs, selected_companies, close_line, volume, indicators, price_alerts, multi_stock), use_container_width=True)
+        st.plotly_chart(create_chart(dfs, selected_companies, close_line, volume, indicators, price_alerts, multi_stock), use_container_width=True)
 
         for company, df in zip(selected_companies, dfs):
             with st.expander(f"Metrics for {company}"):
@@ -335,13 +500,58 @@ if selected_companies:
             combined_patterns = pd.concat(pattern_dfs)
             st.dataframe(combined_patterns[["Symbol", "Date", "Doji", "Hammer", "Bullish Engulfing"]])
 
-        for company in selected_companies:
-            with st.expander(f"News for {company}"):
-                news_items = get_stock_news(company)
-                if news_items:
-                    for item in news_items:
-                        st.markdown(f"- [{item['title']}]({item['link']})")
+        # Market Status and News Section
+        if finnhub_api_key:
+            st.markdown("---")
+            st.markdown("### 📰 News & Market Information")
+            
+            # Market Status
+            with st.expander("📊 Market Status", expanded=True):
+                market_status = get_market_status(finnhub_api_key)
+                if market_status:
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Exchange", market_status["exchange"])
+                    with col2:
+                        st.metric("Status", "🟢 Open" if market_status["status"] else "🔴 Closed")
+                    with col3:
+                        st.metric("Timezone", market_status["timezone"])
+                    with col4:
+                        st.metric("Session", market_status["session"])
                 else:
-                    st.write("No news available.")
+                    st.info("Market status unavailable")
+            
+            # General Market News
+            with st.expander("🌍 Market News", expanded=False):
+                market_news = get_market_news(finnhub_api_key, category="general")
+                if market_news:
+                    for item in market_news:
+                        st.markdown(f"**[{item['title']}]({item['link']})**")
+                        st.caption(f"Source: {item['source']}")
+                        if item['summary']:
+                            st.markdown(f"{item['summary']}")
+                        st.markdown("---")
+                else:
+                    st.info("No market news available")
+            
+            # Company-specific News
+            for company in selected_companies:
+                with st.expander(f"🏢 Company News: {company}", expanded=False):
+                    company_news = get_company_news(company, finnhub_api_key)
+                    if company_news:
+                        for item in company_news:
+                            st.markdown(f"**[{item['title']}]({item['link']})**")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.caption(f"📅 {item['datetime']}")
+                            with col2:
+                                st.caption(f"📰 {item['source']}")
+                            if item['summary']:
+                                st.markdown(f"{item['summary']}")
+                            st.markdown("---")
+                    else:
+                        st.info(f"No news available for {company}")
+        else:
+            st.info("💡 Enter your Finnhub API key in the sidebar to view market status and news")
 else:
     st.info("Please select at least one company to display the chart.")

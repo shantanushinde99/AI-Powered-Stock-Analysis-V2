@@ -1,12 +1,18 @@
 import os
+import sys
 import yfinance as yf
 import streamlit as st
 from agno.agent import Agent
 from agno.models.google import Gemini
 import plotly.graph_objects as go
 
+# Add parent path
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+from utils.styles import get_tradeguide_styles, get_sidebar_html, get_page_header
+
 # Set environment variable for Google API
-os.environ["GOOGLE_API_KEY"] = "AIzaSyCN5jiad-a7v40-FBd2BqenNbZHHhdttiU" #place your own API key of Gemini
+os.environ["GOOGLE_API_KEY"] = "AIzaSyDQP_9WDxehhSeftRo9KuhFBGMfcFhBJPI" #place your own API key of Gemini
 
 # Function to fetch and compare stock data
 def compare_stocks(symbols):
@@ -32,7 +38,7 @@ def compare_stocks(symbols):
 
 # Define the Market Analyst Agent
 market_analyst = Agent(
-    model=Gemini(id="gemini-1.5-flash"),
+    model=Gemini(id="gemini-2.0-flash"),
     description="Analyzes and compares stock performance over time.",
     instructions=[
         "Retrieve and compare stock performance from Yahoo Finance.",
@@ -92,7 +98,7 @@ def get_company_analysis(symbol):
 
 # ----------------------------- Stock strategist agent --------------------------- #
 stock_strategist = Agent(
-    model=Gemini(id="gemini-1.5-pro"),
+    model=Gemini(id="gemini-2.5-flash"),
     description="Provides investment insights and recommends top stocks.",
     instructions=[
         "Analyze stock performance trends and company fundamentals.",
@@ -115,7 +121,7 @@ def get_stock_recommendations(symbols):
 
 # -------------------------------- Team Lead agent --------------------------------- #
 team_lead = Agent(
-    model=Gemini(id="gemini-2.0-flash"),
+    model=Gemini(id="gemini-2.5-flash"),
     description="Aggregates stock analysis, company research, and investment strategy.",
     instructions=[
         "Compile stock performance, company analysis, and recommendations.",
@@ -191,13 +197,30 @@ Rank all the stocks from least to most recommended for buying.
 
 
 # Streamlit page configuration
-st.set_page_config(page_title="AI Investment Strategist", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Investment Strategist - TradeGuide AI", page_icon="💡", layout="wide")
 
-# Title and header
-st.markdown("""
-    <h1 style="text-align: center; color: #4CAF50;">📈 AI Investment Strategist</h1>
-    <h3 style="text-align: center; color: #6c757d;">Generate personalized investment reports with the latest market insights.</h3>
-""", unsafe_allow_html=True)
+# Apply shared styles
+st.markdown(get_tradeguide_styles(), unsafe_allow_html=True)
+
+# Sidebar
+with st.sidebar:
+    # Branding - icon and title
+    st.markdown("""
+    <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0 15px 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 15px;">
+        <span style="font-size: 28px;">📈</span>
+        <span style="font-size: 1.1rem; font-weight: 700; color: #1e293b;">Trade<span style='color: #0ea5e9;'>Guide</span> AI</span>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('<div class="nav-section-label">Navigation</div>', unsafe_allow_html=True)
+    st.page_link("Home Page.py", label="🏠  Home")
+    st.page_link("pages/Trading_Dashboard.py", label="📊  Trading Dashboard")
+    st.page_link("pages/Technical_Analysis.py", label="📈  Technical Analysis")
+    st.page_link("pages/Strategy_Developer.py", label="🎯  Strategy Developer")
+    st.page_link("pages/Investment_Strategist.py", label="💡  Investment Strategist")
+    st.page_link("pages/Candle Stick Chart.py", label="🕯️  Candlestick Charts")
+
+# Page Header
+st.markdown(get_page_header("💡 Investment Strategist", "Get AI-powered investment insights and recommendations"), unsafe_allow_html=True)
 
 # Sidebar Styling
 st.sidebar.markdown("""
@@ -207,7 +230,7 @@ st.sidebar.markdown("""
 
 # Stock symbols input
 input_symbols = st.sidebar.text_input("Enter Stock Symbols (separated by commas)", "AAPL, TSLA, GOOG")
-api_key = st.sidebar.text_input("Enter your API Key (optional)", type="password")
+api_key = st.sidebar.text_input("Enter your API Key ", type="password")
 
 # Parse the stock symbols input
 stocks_symbols = [symbol.strip() for symbol in input_symbols.split(",")]

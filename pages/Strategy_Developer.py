@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime, date
 import json
 import os
+import sys
 from pathlib import Path
 from groq import Groq
 import google.generativeai as genai
@@ -11,13 +12,75 @@ from PIL import Image
 import io
 import plotly.graph_objects as go
 import plotly.express as px
+from streamlit.components.v1 import html
+
+# Add parent path
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+from utils.styles import get_tradeguide_styles, get_sidebar_html, get_page_header
+
+# GCP Video URLs
+VIDEO_1_URL = "https://storage.googleapis.com/stock-project-videos/video1_hls/video1_hls.m3u8"
+VIDEO_2_URL = "https://storage.googleapis.com/stock-project-videos/video2_hls/video2_hls.m3u8"
+
+
+def hls_player(video_url: str, video_id: str, height: int = 420):
+    """HLS video player component for streaming videos from GCP"""
+    html(
+        f"""
+        <video id="{video_id}" controls preload="metadata"
+               style="width:100%; height:{height}px; border-radius:10px;"></video>
+
+        <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+        <script>
+            const video = document.getElementById("{video_id}");
+            const source = "{video_url}";
+
+            if (Hls.isSupported()) {{
+                const hls = new Hls({{
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    backBufferLength: 90
+                }});
+                hls.loadSource(source);
+                hls.attachMedia(video);
+            }} else if (video.canPlayType('application/vnd.apple.mpegurl')) {{
+                video.src = source;
+            }}
+        </script>
+        """,
+        height=height + 80
+    )
 
 # Page configuration
 st.set_page_config(
-    page_title="Strategy Developer & Winning Rate",
-    page_icon="📊",
+    page_title="Strategy Developer - TradeGuide AI",
+    page_icon="🎯",
     layout="wide"
 )
+
+# Apply shared styles
+st.markdown(get_tradeguide_styles(), unsafe_allow_html=True)
+
+# Sidebar
+with st.sidebar:
+    # Branding - icon and title
+    st.markdown("""
+    <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0 15px 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 15px;">
+        <span style="font-size: 28px;">📈</span>
+        <span style="font-size: 1.1rem; font-weight: 700; color: #1e293b;">Trade<span style='color: #0ea5e9;'>Guide</span> AI</span>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('<div class="nav-section-label">Navigation</div>', unsafe_allow_html=True)
+    st.page_link("Home Page.py", label="🏠  Home")
+    st.page_link("pages/Trading_Dashboard.py", label="📊  Trading Dashboard")
+    st.page_link("pages/Technical_Analysis.py", label="📈  Technical Analysis")
+    st.page_link("pages/Strategy_Developer.py", label="🎯  Strategy Developer")
+    st.page_link("pages/Investment_Strategist.py", label="💡  Investment Strategist")
+    st.page_link("pages/Candle Stick Chart.py", label="🕯️  Candlestick Charts")
+
+# Page Header
+st.markdown(get_page_header("🎯 Strategy Developer", "Build and test your trading strategies step-by-step"), unsafe_allow_html=True)
 
 # Initialize session state variables
 if 'strategy_data' not in st.session_state:
@@ -166,6 +229,53 @@ IMPORTANT: If the user's content has multiple points or list items (e.g., separa
     except Exception as e:
         return f"Error rephrasing strategy: {str(e)}"
 
+def format_analysis_text(text):
+    """Format and clean the AI analysis text for better readability"""
+    if not text:
+        return text
+    
+    import re
+    
+    # Fix arrow symbols to proper format
+    text = text.replace('→', ' to ')
+    text = text.replace('–', '-')
+    text = text.replace('—', '-')
+    
+    # Fix common spacing issues (but only when they appear together)
+    text = text.replace('onthe', 'on the')
+    text = text.replace('withthe', 'with the')
+    text = text.replace('ofthe', 'of the')
+    text = text.replace('inthe', 'in the')
+    text = text.replace('atthe', 'at the')
+    text = text.replace('forthe', 'for the')
+    text = text.replace('tothe', 'to the')
+    text = text.replace('andthe', 'and the')
+    
+    # Fix specific trading terms spacing
+    text = text.replace('15mtimeframe', '15m timeframe')
+    text = text.replace('5mtimeframe', '5m timeframe')
+    text = text.replace('1htimeframe', '1h timeframe')
+    text = text.replace('4htimeframe', '4h timeframe')
+    text = text.replace('dailytimeframe', 'daily timeframe')
+    
+    # Fix volume and other trading term spacing
+    text = text.replace('withighvolume', 'with high volume')
+    text = text.replace('withlowvolume', 'with low volume')
+    text = text.replace('ideallywith', 'ideally with')
+    text = text.replace('strongerconfirmation', 'stronger confirmation')
+    text = text.replace('successfulretesto', 'successful retest of')
+    
+    # Fix price level formatting
+    # Fix patterns like $4320→$4330 to $4320 to $4330
+    text = re.sub(r'(\$\d+(?:\.\d+)?)→(\$\d+(?:\.\d+)?)', r'\1 to \2', text)
+    # Fix patterns like 4320→4330 to 4320 to 4330  
+    text = re.sub(r'(\d+(?:\.\d+)?)→(\d+(?:\.\d+)?)', r'\1 to \2', text)
+    
+    # Fix multiple spaces on same line (but preserve line breaks)
+    text = re.sub(r' +', ' ', text)
+    
+    return text
+
 def analyze_chart_with_gemini(image, api_key):
     """Analyze uploaded chart using Gemini models"""
     try:
@@ -293,7 +403,10 @@ def analyze_chart_with_gemini(image, api_key):
         """
         
         response = model.generate_content([prompt, image])
-        return response.text
+        
+        # Apply text formatting to clean up the response
+        formatted_text = format_analysis_text(response.text)
+        return formatted_text
     except Exception as e:
         return f"Error analyzing chart: {str(e)}"
 
@@ -1073,22 +1186,12 @@ with tab1:
         
         with col1:
             st.markdown("#### 📺 Video 1: Trading Strategy Fundamentals")
-            video1_path = Path("videos/video1.mp4")
-            if video1_path.exists():
-                st.video(str(video1_path))
-            else:
-                st.info("📹 Video file not found. Please add `video1.mp4` to the `videos` folder.")
-                st.markdown("[Watch on YouTube](https://www.youtube.com/watch?v=8Cm4aNm488w)")
+            hls_player(VIDEO_1_URL, "strategy_video1", height=400)
             st.caption("Learn the basics of what makes a good trading strategy")
         
         with col2:
             st.markdown("#### 📺 Video 2: Building Your First Strategy")
-            video2_path = Path("videos/video2.mp4")
-            if video2_path.exists():
-                st.video(str(video2_path))
-            else:
-                st.info("📹 Video file not found. Please add `video2.mp4` to the `videos` folder.")
-                st.markdown("[Watch on YouTube](https://www.youtube.com/watch?v=qni31FmI0ys)")
+            hls_player(VIDEO_2_URL, "strategy_video2", height=400)
             st.caption("Step-by-step guide to developing your trading strategy")
         
         st.markdown("---")
@@ -1873,9 +1976,12 @@ with tab4:
             
             analysis_text = st.session_state.strategy_data['chart_analysis']
             
+            # Apply formatting to handle any previously saved unformatted text
+            formatted_text = format_analysis_text(analysis_text)
+            
             # Display in an expandable, formatted container
             with st.container():
-                st.markdown(analysis_text)
+                st.markdown(formatted_text)
             
             # Option to clear analysis
             if st.button("🗑️ Clear Analysis"):
