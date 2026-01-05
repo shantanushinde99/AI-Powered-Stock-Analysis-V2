@@ -165,7 +165,7 @@ else:
     rsi_lower = exp_rsi.number_input("RSI Lower", 10, 50, 30)
 
     # Main App Title
-    st.title("📊 Technical Analysis Dashboard ")
+    st.title("📊 Technical Analysis Dashboard (Powered by Yahoo Finance)")
     st.markdown("""
     Select a stock from the S&P 500 and apply technical indicators for visual analysis.
     """)

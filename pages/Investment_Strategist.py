@@ -230,7 +230,7 @@ st.sidebar.markdown("""
 
 # Stock symbols input
 input_symbols = st.sidebar.text_input("Enter Stock Symbols (separated by commas)", "AAPL, TSLA, GOOG")
-api_key = st.sidebar.text_input("Enter your API Key ", type="password")
+api_key = st.sidebar.text_input("Enter your API Key (optional)", type="password")
 
 # Parse the stock symbols input
 stocks_symbols = [symbol.strip() for symbol in input_symbols.split(",")]

@@ -9,6 +9,13 @@ import numpy as np
 import sys
 import os
 import requests
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Finnhub API Configuration
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 
 # Add parent path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -125,66 +132,44 @@ def get_financial_metrics(symbol):
 
 # Fetch market status from Finnhub
 @st.cache_data(ttl=60)
-def get_market_status(api_key):
+def get_market_status():
     try:
-        url = f"https://finnhub.io/api/v1/stock/market-status?exchange=US&token={api_key}"
+        url = f"https://finnhub.io/api/v1/stock/market-status?exchange=US&token={FINNHUB_API_KEY}"
         response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            return {
-                "exchange": data.get("exchange", "US"),
-                "timezone": data.get("timezone", "America/New_York"),
-                "status": data.get("isOpen", False),
-                "session": data.get("session", "N/A")
-            }
-        else:
-            return None
+        response.raise_for_status()
+        data = response.json()
+        return data
     except Exception as e:
         st.error(f"Error fetching market status: {e}")
         return None
 
-# Fetch general market news from Finnhub
+# Fetch market news from Finnhub
 @st.cache_data(ttl=300)
-def get_market_news(api_key, category="general"):
+def get_market_news():
     try:
-        url = f"https://finnhub.io/api/v1/news?category={category}&token={api_key}"
+        url = f"https://finnhub.io/api/v1/news?category=general&token={FINNHUB_API_KEY}"
         response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            news = response.json()[:5]  # Get top 5 news
-            return [{"title": item.get("headline", "No title"), 
-                    "link": item.get("url", "#"),
-                    "source": item.get("source", "Unknown"),
-                    "summary": item.get("summary", "")[:150] + "..." if item.get("summary") else ""} 
-                   for item in news]
-        else:
-            return []
+        response.raise_for_status()
+        news = response.json()
+        return news[:10] if news else []
     except Exception as e:
         st.error(f"Error fetching market news: {e}")
         return []
 
-# Fetch company-specific news from Finnhub
+# Fetch company news from Finnhub
 @st.cache_data(ttl=300)
-def get_company_news(symbol, api_key, from_date=None, to_date=None):
+def get_company_news(symbol):
     try:
-        if not from_date:
-            from_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-        if not to_date:
-            to_date = datetime.now().strftime("%Y-%m-%d")
-        
-        url = f"https://finnhub.io/api/v1/company-news?symbol={symbol}&from={from_date}&to={to_date}&token={api_key}"
+        # Get news from last 7 days
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        url = f"https://finnhub.io/api/v1/company-news?symbol={symbol}&from={start_date}&to={end_date}&token={FINNHUB_API_KEY}"
         response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            news = response.json()[:5]  # Get top 5 news
-            return [{"title": item.get("headline", "No title"), 
-                    "link": item.get("url", "#"),
-                    "source": item.get("source", "Unknown"),
-                    "datetime": datetime.fromtimestamp(item.get("datetime", 0)).strftime("%Y-%m-%d %H:%M") if item.get("datetime") else "N/A",
-                    "summary": item.get("summary", "")[:150] + "..." if item.get("summary") else ""} 
-                   for item in news]
-        else:
-            return []
+        response.raise_for_status()
+        news = response.json()
+        return news[:10] if news else []
     except Exception as e:
-        st.error(f"Error fetching company news for {symbol}: {e}")
+        st.error(f"Error fetching news for {symbol}: {e}")
         return []
 
 # Process data with technical indicators and candlestick patterns
@@ -376,21 +361,23 @@ def create_chart(dfs, symbols, close_line=False, include_vol=False, indicators=[
 # Dashboard
 st.title(":green[Candle]:red[stick] Pattern Technical Analysis :tea: :coffee:")
 
-# Sidebar for controls
-st.sidebar.markdown("#### 🔑 Finnhub API Key")
-finnhub_api_key = st.sidebar.text_input(
-    "Enter Finnhub API Key",
-    type="password",
-    value=os.getenv("FINNHUB_API_KEY", ""),
-    help="Get your free API key from https://finnhub.io/"
-)
-if finnhub_api_key:
-    os.environ["FINNHUB_API_KEY"] = finnhub_api_key
-    st.sidebar.success("✅ API key set")
-else:
-    st.sidebar.warning("⚠️ Finnhub API key required for news")
+# Market Status Display
+market_status = get_market_status()
+if market_status:
+    status_color = "🟢" if market_status.get("isOpen") else "🔴"
+    status_text = 'OPEN' if market_status.get('isOpen') else 'CLOSED'
+    with st.expander(f"{status_color} Market Status: {status_text}", expanded=False):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown(f"**Status:** {status_text}")
+        with col2:
+            if market_status.get("t"):
+                market_time = datetime.fromtimestamp(market_status["t"]).strftime('%Y-%m-%d %H:%M:%S')
+                st.markdown(f"**Market Time:** {market_time}")
+        with col3:
+            st.markdown(f"**Exchange:** US Stock Market")
 
-st.sidebar.markdown("---")
+# Sidebar for controls
 st.sidebar.markdown("#### S&P 500 Company Selection")
 tickers, tickers_companies_dict = get_sp500_components()
 if tickers:
@@ -500,58 +487,33 @@ if selected_companies:
             combined_patterns = pd.concat(pattern_dfs)
             st.dataframe(combined_patterns[["Symbol", "Date", "Doji", "Hammer", "Bullish Engulfing"]])
 
-        # Market Status and News Section
-        if finnhub_api_key:
-            st.markdown("---")
-            st.markdown("### 📰 News & Market Information")
-            
-            # Market Status
-            with st.expander("📊 Market Status", expanded=True):
-                market_status = get_market_status(finnhub_api_key)
-                if market_status:
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Exchange", market_status["exchange"])
-                    with col2:
-                        st.metric("Status", "🟢 Open" if market_status["status"] else "🔴 Closed")
-                    with col3:
-                        st.metric("Timezone", market_status["timezone"])
-                    with col4:
-                        st.metric("Session", market_status["session"])
-                else:
-                    st.info("Market status unavailable")
-            
-            # General Market News
-            with st.expander("🌍 Market News", expanded=False):
-                market_news = get_market_news(finnhub_api_key, category="general")
-                if market_news:
-                    for item in market_news:
-                        st.markdown(f"**[{item['title']}]({item['link']})**")
-                        st.caption(f"Source: {item['source']}")
-                        if item['summary']:
-                            st.markdown(f"{item['summary']}")
+        # Market News Section
+        with st.expander("📰 Market News (General)", expanded=False):
+            market_news = get_market_news()
+            if market_news:
+                for article in market_news:
+                    news_time = datetime.fromtimestamp(article.get('datetime', 0)).strftime('%Y-%m-%d %H:%M')
+                    st.markdown(f"**[{article.get('headline', 'No title')}]({article.get('url', '#')})**")
+                    st.caption(f"🕒 {news_time} | Source: {article.get('source', 'Unknown')}")
+                    if article.get('summary'):
+                        st.write(article['summary'][:200] + "..." if len(article['summary']) > 200 else article['summary'])
+                    st.markdown("---")
+            else:
+                st.write("No market news available.")
+
+        # Company News Section
+        for company in selected_companies:
+            with st.expander(f"📈 Company News for {company}"):
+                news_items = get_company_news(company)
+                if news_items:
+                    for article in news_items:
+                        news_time = datetime.fromtimestamp(article.get('datetime', 0)).strftime('%Y-%m-%d %H:%M')
+                        st.markdown(f"**[{article.get('headline', 'No title')}]({article.get('url', '#')})**")
+                        st.caption(f"🕒 {news_time} | Source: {article.get('source', 'Unknown')}")
+                        if article.get('summary'):
+                            st.write(article['summary'][:200] + "..." if len(article['summary']) > 200 else article['summary'])
                         st.markdown("---")
                 else:
-                    st.info("No market news available")
-            
-            # Company-specific News
-            for company in selected_companies:
-                with st.expander(f"🏢 Company News: {company}", expanded=False):
-                    company_news = get_company_news(company, finnhub_api_key)
-                    if company_news:
-                        for item in company_news:
-                            st.markdown(f"**[{item['title']}]({item['link']})**")
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.caption(f"📅 {item['datetime']}")
-                            with col2:
-                                st.caption(f"📰 {item['source']}")
-                            if item['summary']:
-                                st.markdown(f"{item['summary']}")
-                            st.markdown("---")
-                    else:
-                        st.info(f"No news available for {company}")
-        else:
-            st.info("💡 Enter your Finnhub API key in the sidebar to view market status and news")
+                    st.write(f"No news available for {company}.")
 else:
     st.info("Please select at least one company to display the chart.")

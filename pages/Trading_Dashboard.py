@@ -213,57 +213,92 @@ def create_executive_summary(final_state, decision):
 # TRADINGAGENTS FRAMEWORK SECTION
 # ============================================================================
 
-st.header("🤖 Trading Agents")
+# Trading Agents Overview Card
+st.markdown("""
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            padding: 2rem; border-radius: 15px; color: white; text-align: center; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); margin-bottom: 2rem;">
+    <h2 style="margin-bottom: 1rem; font-size: 2.5rem;">🤖 TradingAgents Framework</h2>
+    <p style="font-size: 1.1rem; opacity: 0.9; margin-bottom: 0;">
+        Multi-Agent AI System Inspired by Real-World Trading Firms
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
-# Agent Team Info Cards
+# Agent Cards using Streamlit columns
 col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
     st.markdown("""
-    <div style='text-align: center; padding: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; color: white;'>
-        <div style='font-size: 2rem;'>📊</div>
-        <div style='font-weight: 600; margin-top: 0.5rem;'>Analyst Team</div>
-        <div style='font-size: 0.85rem; opacity: 0.9; margin-top: 0.3rem;'>Fundamental • Technical<br>Sentiment • News</div>
+    <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+                padding: 1.5rem; border-radius: 12px; text-align: center; 
+                box-shadow: 0 5px 15px rgba(0,0,0,0.1); height: 200px;
+                display: flex; flex-direction: column; justify-content: center;">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">📊</div>
+        <h4 style="color: white; margin-bottom: 0.5rem;">Analyst Team</h4>
+        <p style="color: rgba(255,255,255,0.9); font-size: 0.85rem; margin: 0;">
+            Fundamental • Technical<br>Sentiment • News
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
 with col2:
     st.markdown("""
-    <div style='text-align: center; padding: 1rem; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 10px; color: white;'>
-        <div style='font-size: 2rem;'>🔍</div>
-        <div style='font-weight: 600; margin-top: 0.5rem;'>Research Team</div>
-        <div style='font-size: 0.85rem; opacity: 0.9; margin-top: 0.3rem;'>Bull & Bear<br>+ Manager</div>
+    <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
+                padding: 1.5rem; border-radius: 12px; text-align: center; 
+                box-shadow: 0 5px 15px rgba(0,0,0,0.1); height: 200px;
+                display: flex; flex-direction: column; justify-content: center;">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔍</div>
+        <h4 style="color: white; margin-bottom: 0.5rem;">Research Team</h4>
+        <p style="color: rgba(255,255,255,0.9); font-size: 0.85rem; margin: 0;">
+            Bull & Bear Perspectives<br>Research Manager
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
 with col3:
     st.markdown("""
-    <div style='text-align: center; padding: 1rem; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); border-radius: 10px; color: white;'>
-        <div style='font-size: 2rem;'>💹</div>
-        <div style='font-weight: 600; margin-top: 0.5rem;'>Trading Agent</div>
-        <div style='font-size: 0.85rem; opacity: 0.9; margin-top: 0.3rem;'>Synthesizes<br>Insights</div>
+    <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); 
+                padding: 1.5rem; border-radius: 12px; text-align: center; 
+                box-shadow: 0 5px 15px rgba(0,0,0,0.1); height: 200px;
+                display: flex; flex-direction: column; justify-content: center;">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">📈</div>
+        <h4 style="color: white; margin-bottom: 0.5rem;">Trading Agent</h4>
+        <p style="color: rgba(255,255,255,0.9); font-size: 0.85rem; margin: 0;">
+            Synthesizes insights<br>Actionable trades
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
 with col4:
     st.markdown("""
-    <div style='text-align: center; padding: 1rem; background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); border-radius: 10px; color: white;'>
-        <div style='font-size: 2rem;'>🛡️</div>
-        <div style='font-weight: 600; margin-top: 0.5rem;'>Risk Management</div>
-        <div style='font-size: 0.85rem; opacity: 0.9; margin-top: 0.3rem;'>Aggressive • Neutral<br>Conservative</div>
+    <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); 
+                padding: 1.5rem; border-radius: 12px; text-align: center; 
+                box-shadow: 0 5px 15px rgba(0,0,0,0.1); height: 200px;
+                display: flex; flex-direction: column; justify-content: center;">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🛡️</div>
+        <h4 style="color: white; margin-bottom: 0.5rem;">Risk Management</h4>
+        <p style="color: rgba(255,255,255,0.9); font-size: 0.85rem; margin: 0;">
+            Aggressive • Neutral<br>Conservative Views
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
 with col5:
     st.markdown("""
-    <div style='text-align: center; padding: 1rem; background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); border-radius: 10px; color: white;'>
-        <div style='font-size: 2rem;'>📁</div>
-        <div style='font-weight: 600; margin-top: 0.5rem;'>Portfolio Manager</div>
-        <div style='font-size: 0.85rem; opacity: 0.9; margin-top: 0.3rem;'>Final Decision<br>Authority</div>
+    <div style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); 
+                padding: 1.5rem; border-radius: 12px; text-align: center; 
+                box-shadow: 0 5px 15px rgba(0,0,0,0.1); height: 200px;
+                display: flex; flex-direction: column; justify-content: center;">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">📁</div>
+        <h4 style="color: white; margin-bottom: 0.5rem;">Portfolio Manager</h4>
+        <p style="color: rgba(255,255,255,0.9); font-size: 0.85rem; margin: 0;">
+            Final decision<br>Allocation authority
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
-st.caption("⚠️ Research-focused AI system. Trading performance is not guaranteed.")
+st.caption("⚠️ Research-focused system. Trading performance is not guaranteed.")
 st.markdown("---")
 
 # Configuration Section

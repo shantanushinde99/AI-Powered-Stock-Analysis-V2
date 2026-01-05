@@ -229,53 +229,6 @@ IMPORTANT: If the user's content has multiple points or list items (e.g., separa
     except Exception as e:
         return f"Error rephrasing strategy: {str(e)}"
 
-def format_analysis_text(text):
-    """Format and clean the AI analysis text for better readability"""
-    if not text:
-        return text
-    
-    import re
-    
-    # Fix arrow symbols to proper format
-    text = text.replace('→', ' to ')
-    text = text.replace('–', '-')
-    text = text.replace('—', '-')
-    
-    # Fix common spacing issues (but only when they appear together)
-    text = text.replace('onthe', 'on the')
-    text = text.replace('withthe', 'with the')
-    text = text.replace('ofthe', 'of the')
-    text = text.replace('inthe', 'in the')
-    text = text.replace('atthe', 'at the')
-    text = text.replace('forthe', 'for the')
-    text = text.replace('tothe', 'to the')
-    text = text.replace('andthe', 'and the')
-    
-    # Fix specific trading terms spacing
-    text = text.replace('15mtimeframe', '15m timeframe')
-    text = text.replace('5mtimeframe', '5m timeframe')
-    text = text.replace('1htimeframe', '1h timeframe')
-    text = text.replace('4htimeframe', '4h timeframe')
-    text = text.replace('dailytimeframe', 'daily timeframe')
-    
-    # Fix volume and other trading term spacing
-    text = text.replace('withighvolume', 'with high volume')
-    text = text.replace('withlowvolume', 'with low volume')
-    text = text.replace('ideallywith', 'ideally with')
-    text = text.replace('strongerconfirmation', 'stronger confirmation')
-    text = text.replace('successfulretesto', 'successful retest of')
-    
-    # Fix price level formatting
-    # Fix patterns like $4320→$4330 to $4320 to $4330
-    text = re.sub(r'(\$\d+(?:\.\d+)?)→(\$\d+(?:\.\d+)?)', r'\1 to \2', text)
-    # Fix patterns like 4320→4330 to 4320 to 4330  
-    text = re.sub(r'(\d+(?:\.\d+)?)→(\d+(?:\.\d+)?)', r'\1 to \2', text)
-    
-    # Fix multiple spaces on same line (but preserve line breaks)
-    text = re.sub(r' +', ' ', text)
-    
-    return text
-
 def analyze_chart_with_gemini(image, api_key):
     """Analyze uploaded chart using Gemini models"""
     try:
@@ -403,10 +356,7 @@ def analyze_chart_with_gemini(image, api_key):
         """
         
         response = model.generate_content([prompt, image])
-        
-        # Apply text formatting to clean up the response
-        formatted_text = format_analysis_text(response.text)
-        return formatted_text
+        return response.text
     except Exception as e:
         return f"Error analyzing chart: {str(e)}"
 
@@ -1976,12 +1926,9 @@ with tab4:
             
             analysis_text = st.session_state.strategy_data['chart_analysis']
             
-            # Apply formatting to handle any previously saved unformatted text
-            formatted_text = format_analysis_text(analysis_text)
-            
             # Display in an expandable, formatted container
             with st.container():
-                st.markdown(formatted_text)
+                st.markdown(analysis_text)
             
             # Option to clear analysis
             if st.button("🗑️ Clear Analysis"):
