@@ -1,0 +1,32 @@
+[server]
+# Headless mode for cloud deployment
+headless = true
+
+# Max upload size (200MB)
+maxUploadSize = 200
+
+# Enable WebSocket compression for better performance
+enableWebsocketCompression = true
+
+[browser]
+# Don't open browser on startup (for cloud deployment)
+gatherUsageStats = false
+serverAddress = "0.0.0.0"
+
+[theme]
+# Custom theme colors
+primaryColor = "#0ea5e9"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f1f5f9"
+textColor = "#1e293b"
+font = "sans serif"
+
+[client]
+# Show error details
+showErrorDetails = true
+toolbarMode = "minimal"
+
+[runner]
+# Fast rerun for better UX
+fastReruns = true
+enforceSerializableSessionState = false
