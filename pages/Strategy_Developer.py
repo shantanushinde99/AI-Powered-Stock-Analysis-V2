@@ -366,9 +366,24 @@ def analyze_strategy_compliance_with_gemini(strategy_data, trades, api_key):
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.5-flash')
         
+        # Smart sampling strategy based on total trades
+        total_trades = len(trades)
+        
+        if total_trades <= 500:
+            # Analyze all trades for comprehensive check
+            trades_to_analyze = trades
+            sampling_info = f"all {total_trades} trades"
+        else:
+            # Stratified sampling for large datasets (500+ trades)
+            # Sample 150-200 trades evenly distributed across entire period
+            target_sample_size = min(200, max(150, total_trades // 10))
+            step = total_trades // target_sample_size
+            trades_to_analyze = [trades[i] for i in range(0, total_trades, step)][:target_sample_size]
+            sampling_info = f"{len(trades_to_analyze)} trades (stratified sample from {total_trades} total trades)"
+        
         # Prepare trades summary
         trades_summary = []
-        for idx, trade in enumerate(trades[-10:], 1):  # Analyze last 10 trades
+        for idx, trade in enumerate(trades_to_analyze, 1):
             trade_info = f"""
 Trade #{idx}:
 - Date & Time: {trade.get('date_time', 'N/A')}
@@ -396,7 +411,7 @@ Trade #{idx}:
 - Stop-Loss Rules: {strategy_data.get('stop_loss', 'Not specified')}
 - Take-Profit Rules: {strategy_data.get('take_profit', 'Not specified')}
 
-**RECENT TRADES (Last 10):**
+**TRADES ANALYZED ({sampling_info}):**
 {trades_text}
 
 **RETURN FORMAT - STRICT JSON:**
@@ -409,7 +424,7 @@ Return your analysis in the following JSON format ONLY (no markdown, no code blo
   "metrics": {{
     "instrument_compliance": {{"score": 100, "status": "pass", "message": "All trades on correct instrument"}},
     "time_window_compliance": {{"score": 80, "status": "warning", "message": "2 trades outside time window"}},
-    "risk_management": {{"score": 70, "status": "warning", "message": "Risk exceeds 3% on 3 trades"}},
+    "risk_management": {{"score": 70, "status": "warning", "message": "Risk management could be improved"}},
     "entry_rules": {{"score": 90, "status": "pass", "message": "Following entry rules well"}},
     "exit_rules": {{"score": 75, "status": "warning", "message": "Premature exits detected"}},
     "stop_loss_usage": {{"score": 100, "status": "pass", "message": "Stop-loss used consistently"}},
@@ -420,6 +435,8 @@ Return your analysis in the following JSON format ONLY (no markdown, no code blo
     {{"severity": "warning", "title": "Time Window", "description": "2 trades taken outside specified session", "trade_numbers": [5, 7]}},
     {{"severity": "suggestion", "title": "Risk Size", "description": "Consider reducing position size on some trades", "trade_numbers": [2, 6, 9]}}
   ],
+  
+**CRITICAL: The 'trade_numbers' array MUST contain the actual trade numbers (e.g., [1, 3, 5]) for every violation. NEVER leave this empty. If a violation applies to all trades, list all trade numbers.**
   "strengths": [
     "Consistent stop-loss placement",
     "Good R:R ratios maintained",
@@ -756,6 +773,16 @@ def calculate_rr_ratio(entry_price, exit_price, stop_loss, is_win):
     except:
         return 0
 
+def format_rr_ratio(rr_value):
+    """Format RR ratio as '1:X' trading format"""
+    try:
+        rr = float(rr_value)
+        if rr == 0:
+            return "0:0"
+        return f"1:{rr:.2f}"
+    except:
+        return "N/A"
+
 def get_dynamic_feedback(win_rate, total_trades):
     """Generate dynamic feedback based on win rate"""
     if total_trades < 10:
@@ -899,7 +926,7 @@ def calculate_performance_metrics(trades_df):
 
 def calculate_consistency_score(trades_df, entry_rules, exit_rules):
     """Calculate how consistently trades follow the stated strategy"""
-    if len(trades_df) == 0 or not entry_rules or not exit_rules:
+    if len(trades_df) == 0:
         return None
     
     # This is a simplified scoring system
@@ -930,21 +957,42 @@ def calculate_consistency_score(trades_df, entry_rules, exit_rules):
         score -= penalty
         factors.append(f"{missing_tp} trades missing take-profit data")
     
-    # Check trade timing consistency (trades should have reasonable spacing)
+    # Check trade timing consistency - STRICT RULE: Only 1 trade per day allowed
+    overtrade_details = []
     if 'Date & Time' in trades_df.columns:
         trades_df['Date & Time'] = pd.to_datetime(trades_df['Date & Time'])
-        trades_df = trades_df.sort_values('Date & Time')
-        time_diffs = trades_df['Date & Time'].diff()
+        trades_df = trades_df.sort_values('Date & Time').reset_index(drop=True)
         
-        # Check for overtrading (too many trades in short time)
-        quick_trades = time_diffs[time_diffs < pd.Timedelta(hours=1)].count()
-        if quick_trades > len(trades_df) * 0.3:  # More than 30% of trades within 1 hour
-            score -= 15
-            factors.append("Potential overtrading detected - many trades within short timeframes")
+        # Extract date only (ignore time)
+        trades_df['Trade_Date'] = trades_df['Date & Time'].dt.date
+        
+        # Find dates with multiple trades
+        date_counts = trades_df['Trade_Date'].value_counts()
+        multiple_trade_dates = date_counts[date_counts > 1]
+        
+        if len(multiple_trade_dates) > 0:
+            total_violations = (date_counts[date_counts > 1]).sum() - len(multiple_trade_dates)
+            score -= min(30, total_violations * 3)  # Penalty up to 30 points
+            
+            # Collect details of all trades on days with multiple trades
+            for trade_date in multiple_trade_dates.index:
+                trades_on_date = trades_df[trades_df['Trade_Date'] == trade_date]
+                trade_numbers = (trades_on_date.index + 1).tolist()
+                trade_times = trades_on_date['Date & Time'].dt.strftime('%H:%M:%S').tolist()
+                
+                overtrade_details.append({
+                    'date': trade_date.strftime('%Y-%m-%d'),
+                    'trade_count': len(trades_on_date),
+                    'trade_numbers': trade_numbers,
+                    'trade_times': trade_times
+                })
+            
+            factors.append(f"⚠️ OVERTRADING: {len(multiple_trade_dates)} days with multiple trades (Rule: Max 1 trade per day)")
     
     return {
         'score': max(0, score),
         'factors': factors,
+        'overtrade_details': overtrade_details,
         'rating': 'Excellent' if score >= 80 else 'Good' if score >= 60 else 'Fair' if score >= 40 else 'Poor'
     }
 
@@ -979,6 +1027,264 @@ def create_equity_curve(trades_df):
         yaxis_title='Cumulative P&L',
         hovermode='x unified',
         height=400
+    )
+    
+    return fig
+
+def create_daily_cumulative_pnl_chart(trades_df):
+    """Create daily net cumulative P&L area chart"""
+    if len(trades_df) == 0:
+        return None
+    
+    # Sort by date
+    trades_df_sorted = trades_df.sort_values('Date & Time').copy()
+    
+    # Calculate cumulative PnL
+    trades_df_sorted['Cumulative PnL'] = trades_df_sorted['PnL'].cumsum()
+    
+    fig = go.Figure()
+    
+    # Separate positive and negative regions
+    x_data = trades_df_sorted['Date & Time'].tolist()
+    y_data = trades_df_sorted['Cumulative PnL'].tolist()
+    
+    # Create separate traces for positive and negative regions
+    # First, add the positive area (green)
+    x_positive = []
+    y_positive = []
+    
+    for i in range(len(x_data)):
+        if y_data[i] >= 0:
+            x_positive.append(x_data[i])
+            y_positive.append(y_data[i])
+        else:
+            # Add zero crossing point
+            if x_positive:
+                x_positive.append(x_data[i])
+                y_positive.append(0)
+                # Add the positive trace
+                fig.add_trace(go.Scatter(
+                    x=x_positive,
+                    y=y_positive,
+                    mode='lines',
+                    line=dict(color='#2E7D32', width=2.5),
+                    fill='tozeroy',
+                    fillcolor='rgba(76, 175, 80, 0.4)',
+                    showlegend=False,
+                    hovertemplate='Date: %{x}<br>Cumulative P&L: $%{y:,.2f}<extra></extra>'
+                ))
+                x_positive = []
+                y_positive = []
+    
+    # Add remaining positive segment
+    if x_positive:
+        fig.add_trace(go.Scatter(
+            x=x_positive,
+            y=y_positive,
+            mode='lines',
+            line=dict(color='#2E7D32', width=2.5),
+            fill='tozeroy',
+            fillcolor='rgba(76, 175, 80, 0.4)',
+            showlegend=False,
+            hovertemplate='Date: %{x}<br>Cumulative P&L: $%{y:,.2f}<extra></extra>'
+        ))
+    
+    # Now add the negative area (red)
+    x_negative = []
+    y_negative = []
+    
+    for i in range(len(x_data)):
+        if y_data[i] < 0:
+            x_negative.append(x_data[i])
+            y_negative.append(y_data[i])
+        else:
+            # Add zero crossing point
+            if x_negative:
+                x_negative.append(x_data[i])
+                y_negative.append(0)
+                # Add the negative trace
+                fig.add_trace(go.Scatter(
+                    x=x_negative,
+                    y=y_negative,
+                    mode='lines',
+                    line=dict(color='#C62828', width=2.5),
+                    fill='tozeroy',
+                    fillcolor='rgba(244, 67, 54, 0.4)',
+                    showlegend=False,
+                    hovertemplate='Date: %{x}<br>Cumulative P&L: $%{y:,.2f}<extra></extra>'
+                ))
+                x_negative = []
+                y_negative = []
+    
+    # Add remaining negative segment
+    if x_negative:
+        fig.add_trace(go.Scatter(
+            x=x_negative,
+            y=y_negative,
+            mode='lines',
+            line=dict(color='#C62828', width=2.5),
+            fill='tozeroy',
+            fillcolor='rgba(244, 67, 54, 0.4)',
+            showlegend=False,
+            hovertemplate='Date: %{x}<br>Cumulative P&L: $%{y:,.2f}<extra></extra>'
+        ))
+    
+    # Add the main line on top for smooth appearance
+    fig.add_trace(go.Scatter(
+        x=x_data,
+        y=y_data,
+        mode='lines',
+        line=dict(color='#1565C0', width=2.5),
+        showlegend=False,
+        hovertemplate='Date: %{x}<br>Cumulative P&L: $%{y:,.2f}<extra></extra>'
+    ))
+    
+    # Add zero line
+    fig.add_hline(y=0, line_dash="solid", line_color="rgba(128, 128, 128, 0.4)", line_width=1)
+    
+    fig.update_layout(
+        title='DAILY NET CUMULATIVE P&L   (ALL DATES)',
+        xaxis_title='',
+        yaxis_title='',
+        hovermode='x unified',
+        height=400,
+        showlegend=False,
+        plot_bgcolor='white',
+        yaxis=dict(tickformat='$,.2f', gridcolor='#f0f0f0'),
+        xaxis=dict(gridcolor='#f0f0f0')
+    )
+    
+    return fig
+
+def create_net_daily_pnl_chart(trades_df):
+    """Create net daily P&L bar chart"""
+    if len(trades_df) == 0:
+        return None
+    
+    # Convert Date & Time to date only and group by date
+    trades_df_copy = trades_df.copy()
+    trades_df_copy['Date'] = pd.to_datetime(trades_df_copy['Date & Time']).dt.date
+    
+    # Group by date and sum PnL
+    daily_pnl = trades_df_copy.groupby('Date')['PnL'].sum().reset_index()
+    daily_pnl = daily_pnl.sort_values('Date')
+    
+    # Determine colors
+    colors = ['#00CC96' if pnl >= 0 else '#EF553B' for pnl in daily_pnl['PnL']]
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        x=daily_pnl['Date'],
+        y=daily_pnl['PnL'],
+        marker_color=colors,
+        hovertemplate='Date: %{x}<br>Net P&L: $%{y:,.2f}<extra></extra>',
+        showlegend=False
+    ))
+    
+    # Add zero line
+    fig.add_hline(y=0, line_dash="dash", line_color="gray", line_width=1.5, opacity=0.7)
+    
+    fig.update_layout(
+        title='NET DAILY P&L   (ALL DATES)',
+        xaxis_title='',
+        yaxis_title='',
+        hovermode='x unified',
+        height=400,
+        plot_bgcolor='white',
+        yaxis=dict(tickformat='$,.2f', gridcolor='#f0f0f0'),
+        xaxis=dict(gridcolor='#f0f0f0')
+    )
+    
+    return fig
+
+def create_trade_distribution_by_day_chart(trades_df):
+    """Create trade distribution by day of week horizontal bar chart"""
+    if len(trades_df) == 0:
+        return None
+    
+    # Extract day of week
+    trades_df_copy = trades_df.copy()
+    trades_df_copy['Date'] = pd.to_datetime(trades_df_copy['Date & Time'])
+    trades_df_copy['DayOfWeek'] = trades_df_copy['Date'].dt.day_name()
+    
+    # Define day order
+    day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    
+    # Count trades by day
+    day_counts = trades_df_copy['DayOfWeek'].value_counts()
+    day_counts = day_counts.reindex(day_order, fill_value=0)
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        y=day_counts.index,
+        x=day_counts.values,
+        orientation='h',
+        marker_color='#5B5FC7',
+        hovertemplate='%{y}: %{x} trades<extra></extra>',
+        showlegend=False
+    ))
+    
+    fig.update_layout(
+        title='TRADE DISTRIBUTION BY DAY OF THE WEEK<br>(ALL DATES)',
+        xaxis_title='',
+        yaxis_title='',
+        height=400,
+        plot_bgcolor='white',
+        xaxis=dict(gridcolor='#f0f0f0'),
+        yaxis=dict(categoryorder='array', categoryarray=day_order[::-1])
+    )
+    
+    return fig
+
+def create_performance_by_day_chart(trades_df):
+    """Create performance by day of week horizontal bar chart"""
+    if len(trades_df) == 0:
+        return None
+    
+    # Extract day of week
+    trades_df_copy = trades_df.copy()
+    trades_df_copy['Date'] = pd.to_datetime(trades_df_copy['Date & Time'])
+    trades_df_copy['DayOfWeek'] = trades_df_copy['Date'].dt.day_name()
+    
+    # Define day order
+    day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    
+    # Sum PnL by day
+    day_performance = trades_df_copy.groupby('DayOfWeek')['PnL'].sum()
+    day_performance = day_performance.reindex(day_order, fill_value=0)
+    
+    # Determine colors
+    colors = ['#00CC96' if pnl >= 0 else '#EF553B' for pnl in day_performance.values]
+    
+    # Create hover text with values
+    hover_text = [f'{day}: ${pnl:,.2f}' for day, pnl in zip(day_performance.index, day_performance.values)]
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        y=day_performance.index,
+        x=day_performance.values,
+        orientation='h',
+        marker_color=colors,
+        text=[f'${pnl:,.2f}' if pnl != 0 else '' for pnl in day_performance.values],
+        textposition='outside',
+        hovertemplate='%{y}: $%{x:,.2f}<extra></extra>',
+        showlegend=False
+    ))
+    
+    # Add zero line
+    fig.add_vline(x=0, line_dash="solid", line_color="black", line_width=1.5, opacity=0.7)
+    
+    fig.update_layout(
+        title='PERFORMANCE BY DAY OF THE WEEK<br>(ALL DATES)',
+        xaxis_title='',
+        yaxis_title='',
+        height=400,
+        plot_bgcolor='white',
+        xaxis=dict(tickformat='$,.2f', gridcolor='#f0f0f0'),
+        yaxis=dict(categoryorder='array', categoryarray=day_order[::-1])
     )
     
     return fig
@@ -1194,7 +1500,7 @@ with tab1:
             instrument_input = st.text_input(
                 "Enter Instrument Name",
                 value=st.session_state.strategy_data['instrument'] or '',
-                help="e.g., BTC/USDT, GOLD, NIFTY, AAPL",
+                help="e.g., EUR/USD, GBP/USD, USD/JPY, BTC/USDT, GOLD, AAPL",
                 key='instrument_input'
             )
             
@@ -1212,6 +1518,22 @@ with tab1:
                     st.rerun()
                 else:
                     st.error("Please enter an instrument name")
+            
+            # Recommended pairs info box - placed after button
+            with st.expander("💡 Recommended Pairs for Beginners", expanded=False):
+                st.markdown("""
+                **Most Liquid & Beginner-Friendly:**
+                
+                - **EUR/USD** (Euro/US Dollar)
+                - **USD/JPY** (US Dollar/Japanese Yen)
+                - **GBP/USD** (British Pound/US Dollar)
+                
+                **Why these pairs?**
+                - ✅ Highly liquid markets
+                - ✅ Easier for beginners
+                - ✅ Simple, predictable chart patterns
+                - ✅ Lower spreads & better execution
+                """)
             
             if st.session_state.strategy_data['instrument']:
                 st.info(f"**Current Instrument:** {st.session_state.strategy_data['instrument']}")
@@ -1243,8 +1565,8 @@ with tab1:
             time_window_options = {
                 "None - Trade Anytime": None,
                 "Asia Session (1:30 AM - 2:30 PM)": "Asia Session (1:30 AM - 2:30 PM)",
-                "London Session (1:30 PM - 10:30 PM)": "London Session (1:30 PM - 10:30 PM)",
-                "New York Session (5:30 PM - 2:30 AM)": "New York Session (5:30 PM - 2:30 AM)"
+                "London Session (12:30 PM - 3:00 PM)": "London Session (12:30 PM - 3:00 PM)",
+                "New York Session (6:30 PM - 10:30 PM)": "New York Session (6:30 PM - 10:30 PM)"
             }
             
             current_selection = st.session_state.strategy_data.get('time_window', None)
@@ -1273,9 +1595,18 @@ with tab1:
             st.markdown("""  
             **Session Info:**
             
-            🌏 **Asia**: Low-medium volatility  
-            🇬🇧 **London**: High volatility  
-            🇺🇸 **New York**: High volatility  
+            🌏 **Asia (1:30 AM - 2:30 PM)**  
+            Low-medium volatility, steady trends
+            
+            🇬🇧 **London (12:30 PM - 3:00 PM)**  
+            Peak volume & volatility period  
+            ⚠️ After 3 PM: Market gets dry
+            
+            🇺🇸 **New York (6:30 PM - 10:30 PM)**  
+            High volume (2nd hour onwards)  
+            ⚠️ After 10:30 PM: Market becomes flat
+            
+            💡 **Tip:** Trade during peak hours for best results
             
             *All times in IST (Indian Standard Time)*
             """)
@@ -1553,9 +1884,21 @@ with tab2:
                                             errors.append(f"Row {idx+2}: Invalid result '{result}' (must be 'Win' or 'Loss')")
                                             continue
                                         
-                                        # Get optional fields
-                                        stop_loss = float(row.get('Stop-loss', 0)) if pd.notna(row.get('Stop-loss', 0)) else 0
-                                        take_profit = float(row.get('Take-profit', 0)) if pd.notna(row.get('Take-profit', 0)) else 0
+                                        # Get optional fields - handle multiple column name variations
+                                        stop_loss_col = None
+                                        for col in ['Stop-loss', 'Stop-Loss', 'Stop_Loss', 'Stop Loss', 'Stoploss']:
+                                            if col in row.index:
+                                                stop_loss_col = col
+                                                break
+                                        stop_loss = float(row[stop_loss_col]) if stop_loss_col and pd.notna(row.get(stop_loss_col, 0)) else 0
+                                        
+                                        take_profit_col = None
+                                        for col in ['Take-profit', 'Take-Profit', 'Take_Profit', 'Take Profit', 'Takeprofit']:
+                                            if col in row.index:
+                                                take_profit_col = col
+                                                break
+                                        take_profit = float(row[take_profit_col]) if take_profit_col and pd.notna(row.get(take_profit_col, 0)) else 0
+                                        
                                         notes = str(row.get('Notes', '')) if pd.notna(row.get('Notes', '')) else ''
                                         strategy_name = str(row.get('Strategy Name', '')) if pd.notna(row.get('Strategy Name', '')) else ''
                                         
@@ -1665,7 +2008,9 @@ with tab2:
             display_df['Date & Time'] = pd.to_datetime(display_df['Date & Time']).dt.strftime('%Y-%m-%d %H:%M')
             display_df['Entry Price'] = display_df['Entry Price'].apply(lambda x: f"{x:.4f}")
             display_df['Exit Price'] = display_df['Exit Price'].apply(lambda x: f"{x:.4f}")
-            display_df['R:R Ratio'] = display_df['R:R Ratio'].apply(lambda x: f"{x:.2f}")
+            display_df['Stop-loss'] = display_df['Stop-loss'].apply(lambda x: f"{x:.4f}" if x > 0 else "N/A")
+            display_df['Take-profit'] = display_df['Take-profit'].apply(lambda x: f"{x:.4f}" if x > 0 else "N/A")
+            display_df['R:R Ratio'] = display_df['R:R Ratio'].apply(format_rr_ratio)
             
             # Display with styling
             st.dataframe(
@@ -1705,7 +2050,7 @@ with tab2:
             
             col1, col2 = st.columns([3, 1])
             with col1:
-                st.info("💡 AI will check your last 10 trades for compliance with instrument, time window, risk management, and strategy rules.")
+                st.info("💡 AI will check your trades for compliance with instrument, time window, risk management, and strategy rules.")
             with col2:
                 if st.button("🔍 Analyze Compliance", type="primary", use_container_width=True):
                     if not st.session_state.gemini_api_key:
@@ -1851,40 +2196,57 @@ with tab3:
                     if consistency['factors']:
                         for factor in consistency['factors']:
                             st.write(f"• {factor}")
+                            
+                            # If overtrading detected, show the detailed trade logs
+                            if "OVERTRADING" in factor and consistency.get('overtrade_details'):
+                                with st.expander("📋 View Overtrading Violations", expanded=True):
+                                    st.error("**⚠️ RULE VIOLATION: Maximum 1 trade per day allowed**")
+                                    st.write("**Days with multiple trades:**")
+                                    for detail in consistency['overtrade_details']:
+                                        st.write(f"**📅 {detail['date']}** - **{detail['trade_count']} trades taken:**")
+                                        for i, (trade_num, trade_time) in enumerate(zip(detail['trade_numbers'], detail['trade_times']), 1):
+                                            st.write(f"   • Trade #{trade_num} at {trade_time}")
+                                        st.write("")  # Spacing
                     else:
                         st.write("✅ No major consistency issues detected")
             
             st.markdown("---")
             
-            # R:R Ratio Distribution
-            st.subheader("📐 Risk:Reward Analysis")
+            # P&L Analysis Charts
+            st.subheader("💰 Detailed P&L Analysis")
             
             col1, col2 = st.columns(2)
             
             with col1:
-                # R:R histogram
-                fig_rr = px.histogram(
-                    trades_df,
-                    x='R:R Ratio',
-                    nbins=20,
-                    title='R:R Ratio Distribution',
-                    color='Result',
-                    color_discrete_map={'Win': '#00CC96', 'Loss': '#EF553B'}
-                )
-                st.plotly_chart(fig_rr, use_container_width=True)
+                # Daily Net Cumulative P&L
+                cumulative_pnl_fig = create_daily_cumulative_pnl_chart(trades_df)
+                if cumulative_pnl_fig:
+                    st.plotly_chart(cumulative_pnl_fig, use_container_width=True)
             
             with col2:
-                # R:R by trade number
-                trades_df['Trade #'] = range(1, len(trades_df) + 1)
-                fig_rr_time = px.scatter(
-                    trades_df,
-                    x='Trade #',
-                    y='R:R Ratio',
-                    color='Result',
-                    title='R:R Ratio Over Time',
-                    color_discrete_map={'Win': '#00CC96', 'Loss': '#EF553B'}
-                )
-                st.plotly_chart(fig_rr_time, use_container_width=True)
+                # Net Daily P&L
+                daily_pnl_fig = create_net_daily_pnl_chart(trades_df)
+                if daily_pnl_fig:
+                    st.plotly_chart(daily_pnl_fig, use_container_width=True)
+            
+            st.markdown("---")
+            
+            # Day of Week Analysis
+            st.subheader("📅 Performance by Day of Week")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Trade Distribution by Day
+                trade_dist_fig = create_trade_distribution_by_day_chart(trades_df)
+                if trade_dist_fig:
+                    st.plotly_chart(trade_dist_fig, use_container_width=True)
+            
+            with col2:
+                # Performance by Day
+                perf_by_day_fig = create_performance_by_day_chart(trades_df)
+                if perf_by_day_fig:
+                    st.plotly_chart(perf_by_day_fig, use_container_width=True)
 
 # TAB 4: AI Analysis
 with tab4:

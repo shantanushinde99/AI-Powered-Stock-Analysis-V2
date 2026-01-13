@@ -233,10 +233,11 @@ with col1:
     <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
                 padding: 1.5rem; border-radius: 12px; text-align: center; 
                 box-shadow: 0 5px 15px rgba(0,0,0,0.1); height: 200px;
-                display: flex; flex-direction: column; justify-content: center;">
-        <div style="font-size: 3rem; margin-bottom: 0.5rem;">📊</div>
-        <h4 style="color: white; margin-bottom: 0.5rem;">Analyst Team</h4>
-        <p style="color: rgba(255,255,255,0.9); font-size: 0.85rem; margin: 0;">
+                display: flex; flex-direction: column; justify-content: center;
+                overflow: hidden; word-wrap: break-word;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📊</div>
+        <h4 style="color: white; margin-bottom: 0.5rem; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Analyst Team</h4>
+        <p style="color: rgba(255,255,255,0.9); font-size: 0.8rem; margin: 0; line-height: 1.3;">
             Fundamental • Technical<br>Sentiment • News
         </p>
     </div>
@@ -247,10 +248,11 @@ with col2:
     <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
                 padding: 1.5rem; border-radius: 12px; text-align: center; 
                 box-shadow: 0 5px 15px rgba(0,0,0,0.1); height: 200px;
-                display: flex; flex-direction: column; justify-content: center;">
-        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔍</div>
-        <h4 style="color: white; margin-bottom: 0.5rem;">Research Team</h4>
-        <p style="color: rgba(255,255,255,0.9); font-size: 0.85rem; margin: 0;">
+                display: flex; flex-direction: column; justify-content: center;
+                overflow: hidden; word-wrap: break-word;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
+        <h4 style="color: white; margin-bottom: 0.5rem; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Research Team</h4>
+        <p style="color: rgba(255,255,255,0.9); font-size: 0.8rem; margin: 0; line-height: 1.3;">
             Bull & Bear Perspectives<br>Research Manager
         </p>
     </div>
@@ -261,10 +263,11 @@ with col3:
     <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); 
                 padding: 1.5rem; border-radius: 12px; text-align: center; 
                 box-shadow: 0 5px 15px rgba(0,0,0,0.1); height: 200px;
-                display: flex; flex-direction: column; justify-content: center;">
-        <div style="font-size: 3rem; margin-bottom: 0.5rem;">📈</div>
-        <h4 style="color: white; margin-bottom: 0.5rem;">Trading Agent</h4>
-        <p style="color: rgba(255,255,255,0.9); font-size: 0.85rem; margin: 0;">
+                display: flex; flex-direction: column; justify-content: center;
+                overflow: hidden; word-wrap: break-word;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📈</div>
+        <h4 style="color: white; margin-bottom: 0.5rem; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Trading Agent</h4>
+        <p style="color: rgba(255,255,255,0.9); font-size: 0.8rem; margin: 0; line-height: 1.3;">
             Synthesizes insights<br>Actionable trades
         </p>
     </div>
@@ -275,10 +278,11 @@ with col4:
     <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); 
                 padding: 1.5rem; border-radius: 12px; text-align: center; 
                 box-shadow: 0 5px 15px rgba(0,0,0,0.1); height: 200px;
-                display: flex; flex-direction: column; justify-content: center;">
-        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🛡️</div>
-        <h4 style="color: white; margin-bottom: 0.5rem;">Risk Management</h4>
-        <p style="color: rgba(255,255,255,0.9); font-size: 0.85rem; margin: 0;">
+                display: flex; flex-direction: column; justify-content: center;
+                overflow: hidden; word-wrap: break-word;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🛡️</div>
+        <h4 style="color: white; margin-bottom: 0.5rem; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Risk Management</h4>
+        <p style="color: rgba(255,255,255,0.9); font-size: 0.8rem; margin: 0; line-height: 1.3;">
             Aggressive • Neutral<br>Conservative Views
         </p>
     </div>
@@ -289,9 +293,10 @@ with col5:
     <div style="background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); 
                 padding: 1.5rem; border-radius: 12px; text-align: center; 
                 box-shadow: 0 5px 15px rgba(0,0,0,0.1); height: 200px;
-                display: flex; flex-direction: column; justify-content: center;">
-        <div style="font-size: 3rem; margin-bottom: 0.5rem;">📁</div>
-        <h4 style="color: white; margin-bottom: 0.5rem;">Portfolio Manager</h4>
+                overflow: hidden; word-wrap: break-word;">
+        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📁</div>
+        <h4 style="color: white; margin-bottom: 0.5rem; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Portfolio Manager</h4>
+        <p style="color: rgba(255,255,255,0.9); font-size: 0.8rem; margin: 0; line-height: 1.34>
         <p style="color: rgba(255,255,255,0.9); font-size: 0.85rem; margin: 0;">
             Final decision<br>Allocation authority
         </p>
