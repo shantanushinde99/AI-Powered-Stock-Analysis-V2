@@ -1,4 +1,4 @@
-# 📊 AI Investment Dashboard - Project Walkthrough
+# 📊 TradeGuide AI - Intelligent Trading Platform
 
 This document provides a comprehensive overview of the AI-Powered Stock Analysis and CandleStick Chart project.
 
